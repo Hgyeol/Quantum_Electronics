@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "kis-code-assistant-mcp"
+  ],
+  "enableAllProjectMcpServers": true
+}

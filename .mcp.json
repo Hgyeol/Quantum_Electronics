@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "kis-code-assistant-mcp": {
+      "command": "/Users/gimhangyeol/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/Users/gimhangyeol/open-trading-api/MCP/KIS Code Assistant MCP",
+        "run",
+        "server.py",
+        "--stdio"
+      ]
+    }
+  }
+}
