@@ -6,7 +6,8 @@ Strategy 05: 이격도 (Disparity)
 """
 
 from core import data_fetcher, indicators
-from core.signal import Action, Signal
+from core.signal import Action
+from core.strategy_result import StrategyResult
 from strategy.base_strategy import BaseStrategy
 
 
@@ -18,23 +19,16 @@ class DisparityStrategy(BaseStrategy):
         period: int = 20,
         oversold_threshold: float = 90.0,
         overbought_threshold: float = 110.0,
-        strength_base: float = 0.5,
-        strength_scale: float = 20.0,
     ):
         """
         Args:
             period: 이동평균 기간 (기본: 20)
             oversold_threshold: 과매도 기준 (기본: 90)
             overbought_threshold: 과매수 기준 (기본: 110)
-            strength_base: 강도 기본값 (기본: 0.5)
-            strength_scale: 이격도 이탈 폭 대비 강도 스케일 (기본: 20.0)
-                - strength = min(1.0, (이탈폭 / strength_scale) + strength_base)
         """
         self.period = period
         self.oversold_threshold = oversold_threshold
         self.overbought_threshold = overbought_threshold
-        self.strength_base = strength_base
-        self.strength_scale = strength_scale
 
     @property
     def name(self) -> str:
@@ -44,51 +38,61 @@ class DisparityStrategy(BaseStrategy):
     def required_days(self) -> int:
         return self.period + 10
 
-    def generate_signal(self, stock_code: str, stock_name: str) -> Signal:
+    def generate_result(self, stock_code: str, stock_name: str) -> StrategyResult:
         """
-        이격도 기반 시그널 생성
+        이격도 기반 결과 반환
         """
         df = data_fetcher.get_daily_prices(stock_code, self.required_days)
 
         if df.empty or len(df) < self.period:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.HOLD,
-                strength=0.0,
+                strategy_name=self.name,
+                raw_signal=Action.HOLD,
+                metrics={},
                 reason="데이터 부족"
             )
 
         disparity = indicators.calc_disparity(df, self.period)
         current_disparity = disparity.iloc[-1]
+        ma_value = indicators.calc_ma(df, self.period).iloc[-1]
 
-        # 과매도
+        metrics = {
+            "disparity": round(float(current_disparity), 2),
+            "ma": round(float(ma_value), 2),
+            "period": self.period,
+            "oversold_threshold": self.oversold_threshold,
+            "overbought_threshold": self.overbought_threshold,
+            "deviation_from_oversold": round(float(self.oversold_threshold - current_disparity), 2),
+            "deviation_from_overbought": round(float(current_disparity - self.overbought_threshold), 2),
+        }
+
         if current_disparity < self.oversold_threshold:
-            strength = min(1.0, (self.oversold_threshold - current_disparity) / self.strength_scale + self.strength_base)
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.BUY,
-                strength=strength,
-                reason=f"이격도 {current_disparity:.1f} (과매도)"
+                strategy_name=self.name,
+                raw_signal=Action.BUY,
+                metrics=metrics,
+                reason=f"이격도 {current_disparity:.1f} (과매도 기준 {self.oversold_threshold})"
             )
 
-        # 과매수
         if current_disparity > self.overbought_threshold:
-            strength = min(1.0, (current_disparity - self.overbought_threshold) / self.strength_scale + self.strength_base)
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.SELL,
-                strength=strength,
-                reason=f"이격도 {current_disparity:.1f} (과매수)"
+                strategy_name=self.name,
+                raw_signal=Action.SELL,
+                metrics=metrics,
+                reason=f"이격도 {current_disparity:.1f} (과매수 기준 {self.overbought_threshold})"
             )
 
-        return Signal(
+        return StrategyResult(
             stock_code=stock_code,
             stock_name=stock_name,
-            action=Action.HOLD,
-            strength=0.0,
+            strategy_name=self.name,
+            raw_signal=Action.HOLD,
+            metrics=metrics,
             reason=f"이격도 {current_disparity:.1f} (중립)"
         )
-

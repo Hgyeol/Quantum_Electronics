@@ -6,7 +6,8 @@ Strategy 09: 평균회귀 (Mean Reversion)
 """
 
 from core import data_fetcher, indicators
-from core.signal import Action, Signal
+from core.signal import Action
+from core.strategy_result import StrategyResult
 from strategy.base_strategy import BaseStrategy
 
 
@@ -18,23 +19,16 @@ class MeanReversionStrategy(BaseStrategy):
         period: int = 5,
         buy_threshold: float = -3.0,
         sell_threshold: float = 3.0,
-        strength_base: float = 0.5,
-        strength_scale: float = 10.0,
     ):
         """
         Args:
             period: 이동평균 기간 (기본: 5일)
             buy_threshold: 매수 이탈 기준 (%, 기본: -3%)
             sell_threshold: 매도 이탈 기준 (%, 기본: +3%)
-            strength_base: 강도 기본값 (기본: 0.5)
-            strength_scale: 이탈률 대비 강도 스케일 (기본: 10.0)
-                - strength = min(1.0, strength_base + abs(deviation) / strength_scale)
         """
         self.period = period
         self.buy_threshold = buy_threshold
         self.sell_threshold = sell_threshold
-        self.strength_base = strength_base
-        self.strength_scale = strength_scale
 
     @property
     def name(self) -> str:
@@ -44,18 +38,19 @@ class MeanReversionStrategy(BaseStrategy):
     def required_days(self) -> int:
         return self.period + 5
 
-    def generate_signal(self, stock_code: str, stock_name: str) -> Signal:
+    def generate_result(self, stock_code: str, stock_name: str) -> StrategyResult:
         """
-        평균회귀 시그널 생성
+        평균회귀 결과 반환
         """
         df = data_fetcher.get_daily_prices(stock_code, self.required_days)
 
         if df.empty or len(df) < self.period:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.HOLD,
-                strength=0.0,
+                strategy_name=self.name,
+                raw_signal=Action.HOLD,
+                metrics={},
                 reason="데이터 부족"
             )
 
@@ -64,43 +59,51 @@ class MeanReversionStrategy(BaseStrategy):
         ma_value = ma.iloc[-1]
 
         if current_close is None or ma_value == 0:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.HOLD,
-                strength=0.0,
+                strategy_name=self.name,
+                raw_signal=Action.HOLD,
+                metrics={},
                 reason="지표 계산 실패"
             )
 
         deviation = (current_close - ma_value) / ma_value * 100
 
-        # 매수: 평균 대비 하락
+        metrics = {
+            "deviation_pct": round(float(deviation), 2),
+            "ma": round(float(ma_value), 2),
+            "close": float(current_close),
+            "period": self.period,
+            "buy_threshold": self.buy_threshold,
+            "sell_threshold": self.sell_threshold,
+        }
+
         if deviation <= self.buy_threshold:
-            strength = min(1.0, self.strength_base + abs(deviation) / self.strength_scale)
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.BUY,
-                strength=strength,
+                strategy_name=self.name,
+                raw_signal=Action.BUY,
+                metrics=metrics,
                 reason=f"평균 대비 {deviation:.1f}% 이탈 (매수)"
             )
 
-        # 매도: 평균 대비 상승
         if deviation >= self.sell_threshold:
-            strength = min(1.0, self.strength_base + deviation / self.strength_scale)
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
-                action=Action.SELL,
-                strength=strength,
+                strategy_name=self.name,
+                raw_signal=Action.SELL,
+                metrics=metrics,
                 reason=f"평균 대비 +{deviation:.1f}% 이탈 (매도)"
             )
 
-        return Signal(
+        return StrategyResult(
             stock_code=stock_code,
             stock_name=stock_name,
-            action=Action.HOLD,
-            strength=0.0,
+            strategy_name=self.name,
+            raw_signal=Action.HOLD,
+            metrics=metrics,
             reason=f"평균 대비 {deviation:.1f}% (중립)"
         )
-

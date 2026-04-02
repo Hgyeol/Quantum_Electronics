@@ -6,28 +6,20 @@ Strategy 10: 추세 필터 (Trend Filter)
 """
 
 from core import data_fetcher, indicators
-from core.signal import Action, Signal
+from core.signal import Action
+from core.strategy_result import StrategyResult
 from strategy.base_strategy import BaseStrategy
 
 
 class TrendFilterStrategy(BaseStrategy):
     """추세 필터 전략"""
 
-    def __init__(
-        self,
-        ma_period: int = 60,
-        buy_strength: float = 0.65,
-        sell_strength: float = 0.65,
-    ):
+    def __init__(self, ma_period: int = 60):
         """
         Args:
             ma_period: 추세 판단 이동평균 기간 (기본: 60일)
-            buy_strength: 매수 시그널 강도 (기본: 0.65)
-            sell_strength: 매도 시그널 강도 (기본: 0.65)
         """
         self.ma_period = ma_period
-        self.buy_strength = buy_strength
-        self.sell_strength = sell_strength
 
     @property
     def name(self) -> str:
@@ -37,18 +29,19 @@ class TrendFilterStrategy(BaseStrategy):
     def required_days(self) -> int:
         return self.ma_period + 10
 
-    def generate_signal(self, stock_code: str, stock_name: str) -> Signal:
+    def generate_result(self, stock_code: str, stock_name: str) -> StrategyResult:
         """
-        추세 필터 시그널 생성
+        추세 필터 결과 반환
         """
         df = data_fetcher.get_daily_prices(stock_code, self.required_days)
 
         if df.empty or len(df) < self.ma_period:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
+                strategy_name=self.name,
                 action=Action.HOLD,
-                strength=0.0,
+                metrics={},
                 reason="데이터 부족"
             )
 
@@ -58,42 +51,54 @@ class TrendFilterStrategy(BaseStrategy):
         ma_value = ma.iloc[-1]
 
         if current_close is None or prev_close is None:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
+                strategy_name=self.name,
                 action=Action.HOLD,
-                strength=0.0,
+                metrics={},
                 reason="지표 계산 실패"
             )
 
         above_ma = current_close > ma_value
         daily_up = current_close > prev_close
+        gap_from_ma = (current_close - ma_value) / ma_value * 100
 
-        # 매수: MA 위 + 상승
+        metrics = {
+            "ma": round(float(ma_value), 2),
+            "close": float(current_close),
+            "prev_close": float(prev_close),
+            "above_ma": above_ma,
+            "daily_up": daily_up,
+            "gap_from_ma_pct": round(float(gap_from_ma), 2),  # MA 대비 이격 (%)
+            "ma_period": self.ma_period,
+        }
+
         if above_ma and daily_up:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
+                strategy_name=self.name,
                 action=Action.BUY,
-                strength=self.buy_strength,
+                metrics=metrics,
                 reason=f"추세 상승: MA{self.ma_period}({ma_value:,.0f}) 위 + 상승"
             )
 
-        # 매도: MA 아래 + 하락
         if not above_ma and not daily_up:
-            return Signal(
+            return StrategyResult(
                 stock_code=stock_code,
                 stock_name=stock_name,
+                strategy_name=self.name,
                 action=Action.SELL,
-                strength=self.sell_strength,
+                metrics=metrics,
                 reason=f"추세 하락: MA{self.ma_period}({ma_value:,.0f}) 아래 + 하락"
             )
 
-        return Signal(
+        return StrategyResult(
             stock_code=stock_code,
             stock_name=stock_name,
+            strategy_name=self.name,
             action=Action.HOLD,
-            strength=0.0,
+            metrics=metrics,
             reason="추세 조건 미충족"
         )
-
