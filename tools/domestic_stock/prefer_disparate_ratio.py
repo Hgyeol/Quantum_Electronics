@@ -10,7 +10,7 @@ import pandas as pd
 
 sys.path.extend(['../..', '.'])
 import kis_auth as ka
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')

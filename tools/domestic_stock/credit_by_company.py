@@ -12,7 +12,7 @@ import pandas as pd
 
 sys.path.extend(['../..', '.'])
 import kis_auth as ka
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 ##############################################################################################
 # [국내주식] 종목정보 > 국내주식 당사 신용가능종목[국내주식-111]

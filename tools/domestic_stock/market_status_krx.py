@@ -7,7 +7,7 @@ import sys
 
 sys.path.extend(['../..', '.'])
 import kis_auth as ka
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 ##############################################################################################
 # [국내주식] 실시간시세 > 국내주식 장운영정보 (KRX) [실시간-049]
