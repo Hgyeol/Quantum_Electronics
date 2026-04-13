@@ -1,6 +1,12 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__kis-code-assistant-mcp__search_domestic_stock_api",
+      "mcp__kis-code-assistant-mcp__search_overseas_stock_api"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "kis-code-assistant-mcp"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
