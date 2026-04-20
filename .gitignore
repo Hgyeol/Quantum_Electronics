@@ -4,3 +4,4 @@ __pycache__
 uv.lock
 .mcp.json
 .env
+.idea
