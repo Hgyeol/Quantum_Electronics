@@ -95,5 +95,9 @@ def fetch_all_reports_last_n_years(corp_code):
     df = pd.DataFrame(all_data)
     return df
 
-df = fetch_all_reports_last_n_years("00126380")
+kospi = pd.read_csv('./kospi.csv', dtype={'corp_code': str, 'stock_code': str})
+samsung = kospi[kospi['corp_name'] == '삼성전자']
+corp_code = samsung['corp_code'].iloc[0]
+print(corp_code)
+df = fetch_all_reports_last_n_years(corp_code)
 print(df)
