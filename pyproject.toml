@@ -13,3 +13,11 @@ dependencies = [
     "requests>=2.32.4",
     "websockets>=15.0.1",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["util*", "disclosure*", "news*", "quant*"]

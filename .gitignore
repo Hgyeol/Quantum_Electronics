@@ -1,9 +1,10 @@
 .contexty
-__pycache__
+**/__pycache__
 .venv
 uv.lock
 .mcp.json
 .env
 .idea
+*.egg-info
 
 disclosure/files

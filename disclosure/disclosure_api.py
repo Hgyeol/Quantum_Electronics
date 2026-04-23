@@ -1,13 +1,4 @@
-import dart_fss as dart
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-CRTFC_KEY= os.getenv('DISCLOSURE_CRTFC_KEY')
-
-dart.set_api_key(CRTFC_KEY)
-
-
+from util.util import dart
 
 corp_code = "00126380"
 bgn_de = "20260101"
@@ -20,7 +11,7 @@ data = dart.api.filings.search_filings(corp_code=corp_code,bgn_de=bgn_de, end_de
 res = []
 for i in data['list']:
     full_path = dart.api.filings.download_document(
-        path="files",
+        path="disclosure/files",
         rcept_no=i['rcept_no']
     )
     res.append(full_path)
