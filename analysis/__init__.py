@@ -10,6 +10,7 @@ from analysis.models import (
     ScoreBreakdown,
 )
 from analysis.scoring import combine_signals
+from analysis.evidence import normalize_evidence
 
 __all__ = [
     "AISignal",
@@ -20,4 +21,5 @@ __all__ = [
     "OutlookReport",
     "ScoreBreakdown",
     "combine_signals",
+    "normalize_evidence",
 ]
