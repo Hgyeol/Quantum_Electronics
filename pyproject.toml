@@ -1,17 +1,24 @@
 [project]
-name = "kis-github"
+name = "quantum-electronics"
 version = "1.0.0"
-description = "korea investment open api sample codes"
+description = "AI-assisted Korean stock investment outlook API"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.116.0",
     "pandas>=2.3.1",
+    "pydantic>=2.11.0",
     "pycryptodome>=3.23.0",
-    "pyqt6>=6.9.1",
-    "pyside6>=6.9.1",
     "pyyaml>=6.0.2",
     "requests>=2.32.4",
+    "uvicorn[standard]>=0.35.0",
     "websockets>=15.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.0",
+    "httpx>=0.28.0",
 ]
 
 [build-system]

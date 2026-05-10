@@ -32,22 +32,38 @@ from Crypto.Util.Padding import unpad
 clearConsole = lambda: os.system("cls" if os.name in ("nt", "dos") else "clear")
 
 key_bytes = 32
-config_root = os.path.join(os.path.expanduser("~"), "KIS", "config")
-# config_root = "$HOME/KIS/config/"  # 토큰 파일이 저장될 폴더, 제3자가 찾기 어렵도록 경로 설정하시기 바랍니다.
-# token_tmp = config_root + 'KIS000000'  # 토큰 로컬저장시 파일 이름 지정, 파일이름을 토큰값이 유추가능한 파일명은 삼가바랍니다.
-# token_tmp = config_root + 'KIS' + datetime.today().strftime("%Y%m%d%H%M%S")  # 토큰 로컬저장시 파일명 년월일시분초
-token_tmp = os.path.join(
-    config_root, f"KIS{datetime.today().strftime('%Y%m%d')}"
-)  # 토큰 로컬저장시 파일명 년월일
 
-# 접근토큰 관리하는 파일 존재여부 체크, 없으면 생성
-if os.path.exists(token_tmp) == False:
-    f = open(token_tmp, "w+")
 
-# 앱키, 앱시크리트, 토큰, 계좌번호 등 저장관리, 자신만의 경로와 파일명으로 설정하시기 바랍니다.
-# pip install PyYAML (패키지설치)
-with open(os.path.join(config_root, "kis_devlp.yaml"), encoding="UTF-8") as f:
-    _cfg = yaml.load(f, Loader=yaml.FullLoader)
+class KISConfigError(RuntimeError):
+    """Raised when KIS configuration is required but unavailable."""
+
+
+def get_config_root() -> str:
+    return os.environ.get(
+        "KIS_CONFIG_ROOT",
+        os.path.join(os.path.expanduser("~"), "KIS", "config"),
+    )
+
+
+def get_config_path() -> str:
+    return os.environ.get(
+        "KIS_CONFIG_FILE",
+        os.path.join(get_config_root(), "kis_devlp.yaml"),
+    )
+
+
+def get_token_path() -> str:
+    return os.environ.get(
+        "KIS_TOKEN_PATH",
+        os.path.join(get_config_root(), f"KIS{datetime.today().strftime('%Y%m%d')}"),
+    )
+
+
+# Backward-compatible module attributes. They are path strings only; importing this
+# module must not create files or read secrets.
+config_root = get_config_root()
+token_tmp = get_token_path()
+_cfg: dict | None = None
 
 _TRENV = tuple()
 _last_auth_time = datetime.now()
@@ -61,8 +77,41 @@ _base_headers = {
     "Content-Type": "application/json",
     "Accept": "text/plain",
     "charset": "UTF-8",
-    "User-Agent": _cfg["my_agent"],
+    "User-Agent": "quantum-electronics",
 }
+
+
+def load_config(config_path: str | None = None) -> dict:
+    """Load KIS configuration on demand.
+
+    The original KIS sample loaded ~/.KIS configuration at import time. This
+    service imports market-data modules in API and test contexts where secrets
+    may be absent, so configuration is loaded only when a KIS call needs it.
+    """
+    global _cfg, config_root, token_tmp
+
+    path = config_path or get_config_path()
+    if not os.path.exists(path):
+        raise KISConfigError(
+            f"KIS config file not found: {path}. "
+            "Set KIS_CONFIG_FILE or create kis_devlp.yaml before calling KIS APIs."
+        )
+
+    with open(path, encoding="UTF-8") as f:
+        loaded = yaml.load(f, Loader=yaml.FullLoader) or {}
+
+    if not isinstance(loaded, dict):
+        raise KISConfigError(f"KIS config file must contain a YAML mapping: {path}")
+
+    _cfg = loaded
+    config_root = os.path.dirname(path)
+    token_tmp = get_token_path()
+    _base_headers["User-Agent"] = _cfg.get("my_agent", "quantum-electronics")
+    return _cfg
+
+
+def _require_config() -> dict:
+    return _cfg if _cfg is not None else load_config()
 
 
 # 토큰 발급 받아 저장 (토큰값, 토큰 유효시간,1일, 6시간 이내 발급신청시는 기존 토큰값과 동일, 발급시 알림톡 발송)
@@ -70,7 +119,9 @@ def save_token(my_token, my_expired):
     # print(type(my_expired), my_expired)
     valid_date = datetime.strptime(my_expired, "%Y-%m-%d %H:%M:%S")
     # print('Save token date: ', valid_date)
-    with open(token_tmp, "w", encoding="utf-8") as f:
+    token_path = get_token_path()
+    os.makedirs(os.path.dirname(token_path), exist_ok=True)
+    with open(token_path, "w", encoding="utf-8") as f:
         f.write(f"token: {my_token}\n")
         f.write(f"valid-date: {valid_date}\n")
 
@@ -79,7 +130,7 @@ def save_token(my_token, my_expired):
 def read_token():
     try:
         # 토큰이 저장된 파일 읽기
-        with open(token_tmp, encoding="UTF-8") as f:
+        with open(get_token_path(), encoding="UTF-8") as f:
             tkg_tmp = yaml.load(f, Loader=yaml.FullLoader)
 
         # 토큰 만료 일,시간
@@ -135,7 +186,10 @@ def isPaperTrading():  # 모의투자 매매
 
 
 # 실전투자면 'prod', 모의투자면 'vps'를 셋팅 하시기 바랍니다.
-def changeTREnv(token_key, svr="prod", product=_cfg["my_prod"]):
+def changeTREnv(token_key, svr="prod", product=None):
+    cfg_source = _require_config()
+    if product is None:
+        product = cfg_source.get("my_prod", "01")
     cfg = dict()
 
     global _isPaper
@@ -149,37 +203,41 @@ def changeTREnv(token_key, svr="prod", product=_cfg["my_prod"]):
         ak2 = "paper_sec"  # 모의투자용 앱시크리트
         _isPaper = True
         _smartSleep = 0.5
+    else:
+        raise KISConfigError(f"Unsupported KIS server type: {svr}")
 
-    cfg["my_app"] = _cfg[ak1]
-    cfg["my_sec"] = _cfg[ak2]
+    cfg["my_app"] = cfg_source[ak1]
+    cfg["my_sec"] = cfg_source[ak2]
 
     if svr == "prod" and product == "01":  # 실전투자 주식투자, 위탁계좌, 투자계좌
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = cfg_source["my_acct_stock"]
     elif svr == "prod" and product == "03":  # 실전투자 선물옵션(파생)
-        cfg["my_acct"] = _cfg["my_acct_future"]
+        cfg["my_acct"] = cfg_source["my_acct_future"]
     elif svr == "prod" and product == "08":  # 실전투자 해외선물옵션(파생)
-        cfg["my_acct"] = _cfg["my_acct_future"]
+        cfg["my_acct"] = cfg_source["my_acct_future"]
     elif svr == "prod" and product == "21":  # 실전투자 ISA(개인종합자산관리계좌)
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = cfg_source["my_acct_stock"]
     elif svr == "prod" and product == "22":  # 실전투자 개인연금저축계좌
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = cfg_source["my_acct_stock"]
     elif svr == "prod" and product == "29":  # 실전투자 퇴직연금계좌
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = cfg_source["my_acct_stock"]
     elif svr == "vps" and product == "01":  # 모의투자 주식투자, 위탁계좌, 투자계좌
-        cfg["my_acct"] = _cfg["my_paper_stock"]
+        cfg["my_acct"] = cfg_source["my_paper_stock"]
     elif svr == "vps" and product == "03":  # 모의투자 선물옵션(파생)
-        cfg["my_acct"] = _cfg["my_paper_future"]
+        cfg["my_acct"] = cfg_source["my_paper_future"]
+    else:
+        raise KISConfigError(f"Unsupported KIS product for {svr}: {product}")
 
     cfg["my_prod"] = product
-    cfg["my_htsid"] = _cfg["my_htsid"]
-    cfg["my_url"] = _cfg[svr]
+    cfg["my_htsid"] = cfg_source["my_htsid"]
+    cfg["my_url"] = cfg_source[svr]
 
     try:
         my_token = _TRENV.my_token
     except AttributeError:
         my_token = ""
     cfg["my_token"] = my_token if token_key else token_key
-    cfg["my_url_ws"] = _cfg["ops" if svr == "prod" else "vops"]
+    cfg["my_url_ws"] = cfg_source["ops" if svr == "prod" else "vops"]
 
     # print(cfg)
     _setTRENV(cfg)
@@ -193,7 +251,10 @@ def _getResultObject(json_data):
 
 # Token 발급, 유효기간 1일, 6시간 이내 발급시 기존 token값 유지, 발급시 알림톡 무조건 발송
 # 모의투자인 경우  svr='vps', 투자계좌(01)이 아닌경우 product='XX' 변경하세요 (계좌번호 뒤 2자리)
-def auth(svr="prod", product=_cfg["my_prod"], url=None):
+def auth(svr="prod", product=None, url=None):
+    cfg_source = _require_config()
+    if product is None:
+        product = cfg_source.get("my_prod", "01")
     p = {
         "grant_type": "client_credentials",
     }
@@ -205,16 +266,18 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
     elif svr == "vps":  # 모의투자
         ak1 = "paper_app"  # 앱키 (모의투자용)
         ak2 = "paper_sec"  # 앱시크리트 (모의투자용)
+    else:
+        raise KISConfigError(f"Unsupported KIS server type: {svr}")
 
     # 앱키, 앱시크리트 가져오기
-    p["appkey"] = _cfg[ak1]
-    p["appsecret"] = _cfg[ak2]
+    p["appkey"] = cfg_source[ak1]
+    p["appsecret"] = cfg_source[ak2]
 
     # 기존 발급된 토큰이 있는지 확인
     saved_token = read_token()  # 기존 발급 토큰 확인
     # print("saved_token: ", saved_token)
     if saved_token is None:  # 기존 발급 토큰 확인이 안되면 발급처리
-        url = f"{_cfg[svr]}/oauth2/tokenP"
+        url = url or f"{cfg_source[svr]}/oauth2/tokenP"
         res = requests.post(
             url, data=json.dumps(p), headers=_getBaseHeader()
         )  # 토큰 발급
@@ -247,14 +310,14 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
 
 # end of initialize, 토큰 재발급, 토큰 발급시 유효시간 1일
 # 프로그램 실행시 _last_auth_time에 저장하여 유효시간 체크, 유효시간 만료시 토큰 발급 처리
-def reAuth(svr="prod", product=_cfg["my_prod"]):
+def reAuth(svr="prod", product=None):
     n2 = datetime.now()
     if (n2 - _last_auth_time).seconds >= 86400:  # 유효시간 1일
         auth(svr, product)
 
 
 def getEnv():
-    return _cfg
+    return _require_config()
 
 
 def smart_sleep():
@@ -474,7 +537,10 @@ def _getBaseHeader_ws():
     return copy.deepcopy(_base_headers_ws)
 
 
-def auth_ws(svr="prod", product=_cfg["my_prod"]):
+def auth_ws(svr="prod", product=None):
+    cfg_source = _require_config()
+    if product is None:
+        product = cfg_source.get("my_prod", "01")
     p = {"grant_type": "client_credentials"}
     if svr == "prod":
         ak1 = "my_app"
@@ -482,11 +548,13 @@ def auth_ws(svr="prod", product=_cfg["my_prod"]):
     elif svr == "vps":
         ak1 = "paper_app"
         ak2 = "paper_sec"
+    else:
+        raise KISConfigError(f"Unsupported KIS server type: {svr}")
 
-    p["appkey"] = _cfg[ak1]
-    p["secretkey"] = _cfg[ak2]
+    p["appkey"] = cfg_source[ak1]
+    p["secretkey"] = cfg_source[ak2]
 
-    url = f"{_cfg[svr]}/oauth2/Approval"
+    url = f"{cfg_source[svr]}/oauth2/Approval"
     res = requests.post(url, data=json.dumps(p), headers=_getBaseHeader())  # 토큰 발급
     rescode = res.status_code
     if rescode == 200:  # 토큰 정상 발급
@@ -506,7 +574,7 @@ def auth_ws(svr="prod", product=_cfg["my_prod"]):
         print(f"[{_last_auth_time}] => get AUTH Key completed!")
 
 
-def reAuth_ws(svr="prod", product=_cfg["my_prod"]):
+def reAuth_ws(svr="prod", product=None):
     n2 = datetime.now()
     if (n2 - _last_auth_time).seconds >= 86400:
         auth_ws(svr, product)

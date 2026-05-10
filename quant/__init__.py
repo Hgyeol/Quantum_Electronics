@@ -2,6 +2,7 @@
 quant 패키지: 퀀트 엔진 + 5개 신호 모듈.
 
 임포트 시 프로젝트 루트와 tools/strategy 경로를 sys.path 에 추가한다.
+QuantEngine은 KIS 샘플 모듈을 참조하므로 패키지 import 단계에서 eager import하지 않는다.
 """
 
 import sys
@@ -15,6 +16,5 @@ for _p in [_PROJECT_ROOT, _STRATEGY_ROOT]:
         sys.path.insert(0, _p)
 
 from quant.models import QuantSignal
-from quant.engine import QuantEngine
 
-__all__ = ["QuantSignal", "QuantEngine"]
+__all__ = ["QuantSignal"]
