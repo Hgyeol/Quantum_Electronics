@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from analysis.scoring import combine_signals
 from disclosure.disclosure_api import search_disclosures
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
-from llm.analyzer import DisabledLLMAnalyzer
+from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
 from news.naver_news_api import search_naver_news
 from quant.engine import QuantEngine
 from quant.models import QuantSignal
@@ -30,7 +31,11 @@ class OutlookQuery(BaseModel):
 class OutlookService:
     def __init__(self, quant_engine: QuantEngine | None = None):
         self.quant_engine = quant_engine or QuantEngine()
-        self.llm_analyzer = DisabledLLMAnalyzer()
+        self.llm_analyzer = (
+            OpenAIResponsesAnalyzer()
+            if os.getenv("OPENAI_API_KEY")
+            else DisabledLLMAnalyzer()
+        )
 
     def build_report(self, stock_code: str, stock_name: str | None = None) -> OutlookReport:
         normalized_code = stock_code.strip()

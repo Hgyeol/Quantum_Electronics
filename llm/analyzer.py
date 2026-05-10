@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
+import requests
 from pydantic import ValidationError
 
 from analysis.models import AISignal, AnalysisError, Evidence
@@ -90,6 +93,61 @@ class StructuredLLMAnalyzer:
             )
 
         return LLMAnalysisResult(signals=[signal])
+
+
+class OpenAIResponsesAnalyzer(StructuredLLMAnalyzer):
+    """OpenAI Responses API adapter.
+
+    Official OpenAI docs recommend the Responses API for new text generation
+    integrations. This adapter is optional and only used when OPENAI_API_KEY is
+    configured.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        session: Any = requests,
+        timeout: float = 30.0,
+    ):
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.2")
+        self.session = session
+        self.timeout = timeout
+        super().__init__(self._complete)
+
+    def _complete(self, prompt: str) -> str:
+        if not self.api_key:
+            raise RuntimeError("OPENAI_API_KEY is not configured")
+
+        response = self.session.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.model,
+                "input": prompt,
+                "text": {"format": {"type": "json_object"}},
+            },
+            timeout=self.timeout,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(f"OpenAI Responses API returned HTTP {response.status_code}")
+
+        payload = response.json()
+        if payload.get("output_text"):
+            return payload["output_text"]
+
+        texts: list[str] = []
+        for item in payload.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") == "output_text" and content.get("text"):
+                    texts.append(content["text"])
+        if not texts:
+            raise RuntimeError("OpenAI response did not include output text")
+        return "\n".join(texts)
 
 
 def build_evidence_prompt(evidence: list[Evidence]) -> str:

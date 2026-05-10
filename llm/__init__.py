@@ -1,5 +1,15 @@
 """Structured LLM evidence analysis."""
 
-from llm.analyzer import DisabledLLMAnalyzer, LLMAnalysisResult, StructuredLLMAnalyzer
+from llm.analyzer import (
+    DisabledLLMAnalyzer,
+    LLMAnalysisResult,
+    OpenAIResponsesAnalyzer,
+    StructuredLLMAnalyzer,
+)
 
-__all__ = ["DisabledLLMAnalyzer", "LLMAnalysisResult", "StructuredLLMAnalyzer"]
+__all__ = [
+    "DisabledLLMAnalyzer",
+    "LLMAnalysisResult",
+    "OpenAIResponsesAnalyzer",
+    "StructuredLLMAnalyzer",
+]

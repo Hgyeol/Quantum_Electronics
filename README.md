@@ -20,6 +20,7 @@ export DART_API_KEY=
 export NAVER_CLIENT_ID=
 export NAVER_CLIENT_SECRET=
 export OPENAI_API_KEY=
+export OPENAI_MODEL=gpt-5.2
 export ENABLE_REAL_TRADING=false
 ```
 
@@ -82,6 +83,6 @@ Without KIS, DART, Naver, or LLM credentials, the API still returns a structured
 ## Current Implementation Notes
 
 - Real order modules under `tools/` are not connected to FastAPI routes or outlook orchestration.
-- `llm/` currently provides a disabled analyzer and an injectable structured analyzer. A concrete provider client can be added later without changing report models.
+- `llm/` uses disabled analysis by default and switches to an OpenAI Responses API analyzer when `OPENAI_API_KEY` is configured.
 - DART disclosure and financial collection only call external APIs when keys are configured.
 - KIS-backed quant signals degrade to neutral/error paths when KIS auth is not initialized.

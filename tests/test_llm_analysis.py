@@ -2,7 +2,39 @@ import json
 import unittest
 
 from analysis.models import Evidence
-from llm.analyzer import DisabledLLMAnalyzer, StructuredLLMAnalyzer, build_evidence_prompt
+from llm.analyzer import (
+    DisabledLLMAnalyzer,
+    OpenAIResponsesAnalyzer,
+    StructuredLLMAnalyzer,
+    build_evidence_prompt,
+)
+
+
+class MockOpenAIResponse:
+    status_code = 200
+
+    def json(self):
+        return {
+            "output_text": json.dumps(
+                {
+                    "label": "news interpretation",
+                    "direction": "positive",
+                    "score": 1,
+                    "summary": "실적 개선 근거",
+                    "evidence_ids": ["news-1"],
+                    "confidence": 0.6,
+                }
+            )
+        }
+
+
+class MockOpenAISession:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return MockOpenAIResponse()
 
 
 class LLMAnalysisTests(unittest.TestCase):
@@ -78,6 +110,17 @@ class LLMAnalysisTests(unittest.TestCase):
 
         self.assertIn("Use only evidence_id values shown below", prompt)
         self.assertIn("evidence_id: fin-1", prompt)
+
+    def test_openai_responses_adapter_parses_output_text(self):
+        session = MockOpenAISession()
+        analyzer = OpenAIResponsesAnalyzer(api_key="test-key", model="gpt-test", session=session)
+        evidence = [Evidence(evidence_id="news-1", kind="news", source="mock", title="기사")]
+
+        result = analyzer.analyze_evidence(evidence)
+
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.signals[0].direction, "positive")
+        self.assertEqual(session.calls[0][1]["json"]["model"], "gpt-test")
 
 
 if __name__ == "__main__":
