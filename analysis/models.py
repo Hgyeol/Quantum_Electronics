@@ -55,6 +55,13 @@ class FinancialSignal(DirectionalScoreModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class FinancialInterpretation(BaseModel):
+    summary: str = Field(min_length=1)
+    evidence_ids: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    positives: list[str] = Field(default_factory=list)
+
+
 class AnalysisError(BaseModel):
     source: str = Field(min_length=1)
     code: str = Field(min_length=1)
@@ -92,6 +99,7 @@ class OutlookReport(BaseModel):
     quant_signals: list[QuantSignal] = Field(default_factory=list)
     ai_signals: list[AISignal] = Field(default_factory=list)
     financial_signals: list[FinancialSignal] = Field(default_factory=list)
+    financial_interpretation: FinancialInterpretation | None = None
     evidence: list[Evidence] = Field(default_factory=list)
     errors: list[AnalysisError] = Field(default_factory=list)
 
