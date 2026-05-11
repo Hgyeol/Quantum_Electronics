@@ -43,7 +43,8 @@ class StructuredLLMAnalyzer:
         self._completion_fn = completion_fn
 
     def analyze_evidence(self, evidence: list[Evidence]) -> LLMAnalysisResult:
-        prompt = build_evidence_prompt(evidence)
+        llm_evidence = filter_llm_evidence(evidence)
+        prompt = build_evidence_prompt(llm_evidence)
         try:
             raw_output = self._completion_fn(prompt)
             payload = json.loads(raw_output)
@@ -79,7 +80,7 @@ class StructuredLLMAnalyzer:
                 ]
             )
 
-        allowed_ids = {item.evidence_id for item in evidence}
+        allowed_ids = {item.evidence_id for item in llm_evidence}
         unknown_ids = [evidence_id for evidence_id in signal.evidence_ids if evidence_id not in allowed_ids]
         if unknown_ids:
             return LLMAnalysisResult(
@@ -149,6 +150,45 @@ class OpenAIResponsesAnalyzer(StructuredLLMAnalyzer):
         if not texts:
             raise RuntimeError("OpenAI response did not include output text")
         return "\n".join(texts)
+
+
+_LOW_PRIORITY_LABOR_TERMS = (
+    "노사",
+    "노조",
+    "파업",
+    "성과급",
+    "임금",
+    "보상",
+)
+
+_MATERIAL_LABOR_IMPACT_TERMS = (
+    "생산 차질",
+    "가동 중단",
+    "조업 중단",
+    "장기 파업",
+    "회사 공시",
+    "공시",
+    "확정 비용",
+    "실적 반영",
+    "가이던스 하향",
+)
+
+
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term in text for term in terms)
+
+
+def _is_low_priority_labor_evidence(item: Evidence) -> bool:
+    text = f"{item.title}\n{item.content or ''}"
+    return _contains_any(text, _LOW_PRIORITY_LABOR_TERMS) and not _contains_any(
+        text,
+        _MATERIAL_LABOR_IMPACT_TERMS,
+    )
+
+
+def filter_llm_evidence(evidence: list[Evidence]) -> list[Evidence]:
+    """Remove low-priority labor/compensation news before LLM analysis."""
+    return [item for item in evidence if not _is_low_priority_labor_evidence(item)]
 
 
 def build_evidence_prompt(evidence: list[Evidence]) -> str:

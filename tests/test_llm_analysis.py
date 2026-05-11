@@ -7,6 +7,7 @@ from llm.analyzer import (
     OpenAIResponsesAnalyzer,
     StructuredLLMAnalyzer,
     build_evidence_prompt,
+    filter_llm_evidence,
 )
 
 
@@ -121,6 +122,49 @@ class LLMAnalysisTests(unittest.TestCase):
         self.assertIn("score는 반드시 -2, -1, 0, 1, 2", prompt)
         self.assertIn("evidence_ids는 아래에 표시된 evidence_id만 사용한다", prompt)
         self.assertIn("evidence_id: fin-1", prompt)
+
+    def test_low_priority_labor_news_is_filtered_before_llm_analysis(self):
+        evidence = [
+            Evidence(
+                evidence_id="news-1",
+                kind="news",
+                source="Naver News",
+                title="삼성전자 주가 강세",
+                content="영업이익 전망치가 상향되고 주가 모멘텀이 확인된다.",
+            ),
+            Evidence(
+                evidence_id="news-2",
+                kind="news",
+                source="Naver News",
+                title="삼성 노사 성과급 재협상 난항",
+                content="노조가 성과급 제도화를 요구했다.",
+            ),
+        ]
+
+        filtered = filter_llm_evidence(evidence)
+
+        self.assertEqual([item.evidence_id for item in filtered], ["news-1"])
+
+        def completion(prompt):
+            self.assertIn("evidence_id: news-1", prompt)
+            self.assertNotIn("evidence_id: news-2", prompt)
+            self.assertNotIn("삼성 노사 성과급 재협상 난항", prompt)
+            self.assertNotIn("노조가 성과급 제도화를 요구했다", prompt)
+            return json.dumps(
+                {
+                    "label": "삼성전자",
+                    "direction": "positive",
+                    "score": 1,
+                    "summary": "영업이익 전망치 상향과 주가 모멘텀이 확인된다.",
+                    "evidence_ids": ["news-1"],
+                    "confidence": 0.6,
+                }
+            )
+
+        result = StructuredLLMAnalyzer(completion).analyze_evidence(evidence)
+
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.signals[0].direction, "positive")
 
     def test_openai_responses_adapter_parses_output_text(self):
         session = MockOpenAISession()
