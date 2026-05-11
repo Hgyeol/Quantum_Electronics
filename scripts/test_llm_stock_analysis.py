@@ -4,6 +4,7 @@ Usage:
     python scripts/test_llm_stock_analysis.py
     # then enter: 삼성전자
 
+    python scripts/test_llm_stock_analysis.py --kis-auth
     python scripts/test_llm_stock_analysis.py 삼성전자
     python scripts/test_llm_stock_analysis.py 005930 --stock-name 삼성전자
 
@@ -79,6 +80,8 @@ def main() -> int:
     parser.add_argument("--stock-name", help="Optional stock name when query is a stock code")
     parser.add_argument("--news-display", type=int, default=5, help="Naver news item count")
     parser.add_argument("--kis-news-limit", type=int, default=5, help="KIS news-title item count")
+    parser.add_argument("--kis-auth", action="store_true", help="Authenticate KIS before collecting KIS news titles")
+    parser.add_argument("--kis-server", default="prod", choices=["prod", "vps"], help="KIS server for --kis-auth")
     parser.add_argument("--news-days", type=int, default=7, help="Keep only news from the last N days")
     parser.add_argument("--days", type=int, default=45, help="DART disclosure lookback days")
     parser.add_argument(
@@ -101,6 +104,9 @@ def main() -> int:
         json.dumps(
             {
                 "configured": {
+                    "KIS_CONFIG_FILE": is_configured("KIS_CONFIG_FILE"),
+                    "KIS_CONFIG_ROOT": is_configured("KIS_CONFIG_ROOT"),
+                    "KIS_TOKEN_PATH": is_configured("KIS_TOKEN_PATH"),
                     "DISCLOSURE_CRTFC_KEY": is_configured("DISCLOSURE_CRTFC_KEY"),
                     "NAVER_NEWS_API_CLIENT": is_configured("NAVER_NEWS_API_CLIENT"),
                     "NAVER_NEWS_API_SECRET": is_configured("NAVER_NEWS_API_SECRET"),
@@ -116,6 +122,22 @@ def main() -> int:
     errors = []
     evidence = []
     financial_signals = []
+    kis_authenticated = False
+    if args.kis_auth:
+        try:
+            import kis_auth
+
+            kis_auth.auth(svr=args.kis_server)
+            kis_authenticated = True
+        except Exception as exc:
+            errors.append(
+                {
+                    "source": "kis_auth",
+                    "code": "auth_failed",
+                    "message": f"KIS auth failed: {exc}",
+                    "recoverable": True,
+                }
+            )
     stock = lookup_stock_master(query)
     if stock:
         stock_code = stock["stock_code"]
@@ -220,6 +242,7 @@ def main() -> int:
 
     output = {
         "stock": {"code": stock_code, "name": stock_name, "corp_code": corp_code},
+        "kis_authenticated": kis_authenticated,
         "news_query": news_query,
         "news_filter": {
             "sort": "date",
