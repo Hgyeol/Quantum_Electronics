@@ -131,7 +131,7 @@ class EvidenceCollectionTests(unittest.TestCase):
     def test_build_stock_news_query_includes_investment_terms(self):
         self.assertEqual(
             build_stock_news_query("삼성전자"),
-            '"삼성전자" 주가 | 실적 | 공시 | 투자',
+            '"삼성전자" +경제 | +증권 | +금융 | +실적',
         )
 
     def test_naver_missing_credentials_returns_error_without_request(self):
