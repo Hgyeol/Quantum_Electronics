@@ -34,7 +34,7 @@ from disclosure.financial_statement_single_account_api import fetch_all_reports_
 from financial.metrics import analyze_financials
 from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
 from news.naver_news_api import build_stock_news_query, search_naver_news
-from services.outlook import lookup_corp_code, lookup_dart_stock_mapping, lookup_stock_master
+from services.outlook import lookup_corp_code, lookup_stock_master
 
 
 def load_dotenv_file(path: Path = Path(".env")) -> None:
@@ -114,7 +114,7 @@ def main() -> int:
     errors = []
     evidence = []
     financial_signals = []
-    stock = lookup_stock_master(query) or lookup_dart_stock_mapping(query)
+    stock = lookup_stock_master(query)
     if stock:
         stock_code = stock["stock_code"]
         stock_name = args.stock_name or stock["corp_name"]
@@ -123,18 +123,37 @@ def main() -> int:
         stock_code = query
         stock_name = args.stock_name or query
         corp_code = None
-        if not query.isdigit():
-            errors.append(
-                {
-                    "source": "stock_lookup",
-                    "code": "name_not_found",
-                    "message": (
-                        f"Could not resolve stock name '{query}' from local stock master. "
-                        "Retry with a 6-digit stock code and --stock-name."
-                    ),
-                    "recoverable": True,
-                }
-            )
+        errors.append(
+            {
+                "source": "stock_lookup",
+                "code": "not_kospi_or_not_found",
+                "message": (
+                    f"Could not resolve '{query}' from the local KOSPI stock master. "
+                    "News, disclosure, financial, and LLM analysis were skipped."
+                ),
+                "recoverable": True,
+            }
+        )
+        output = {
+            "stock": {"code": stock_code, "name": stock_name, "corp_code": corp_code},
+            "skipped": True,
+            "skip_reason": "not_kospi_or_not_found",
+            "counts": {
+                "evidence": 0,
+                "news": 0,
+                "disclosures": 0,
+                "financial": 0,
+                "financial_signals": 0,
+                "llm_signals": 0,
+                "errors": len(errors),
+            },
+            "llm_signals": [],
+            "financial_signals": [],
+            "evidence_preview": [],
+            "errors": errors,
+        }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+        return 0
 
     news_end = datetime.now(timezone.utc)
     news_start = news_end - timedelta(days=args.news_days)

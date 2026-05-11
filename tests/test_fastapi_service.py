@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from analysis.models import OutlookReport
 from analysis.scoring import combine_signals
 from quant.models import QuantSignal
-from services.outlook import lookup_dart_stock_mapping, lookup_stock_master
+from services.outlook import OutlookService, lookup_dart_stock_mapping, lookup_stock_master
 from web.main import app, get_outlook_service
 
 
@@ -85,6 +85,19 @@ class FastAPIServiceTests(unittest.TestCase):
         self.assertIsNotNone(stock)
         self.assertEqual(stock["stock_code"], "005930")
         self.assertEqual(stock["corp_name"], "삼성전자")
+
+    def test_outlook_service_skips_non_kospi_query_before_llm(self):
+        class ExplodingQuantEngine:
+            def get_signals(self, stock_code, stock_name):
+                raise AssertionError("quant should not run for non-KOSPI queries")
+
+        service = OutlookService(quant_engine=ExplodingQuantEngine())
+        report = service.build_report("애플")
+
+        self.assertEqual(report.score.direction, "neutral")
+        self.assertEqual(report.ai_signals, [])
+        self.assertEqual(report.evidence, [])
+        self.assertEqual(report.errors[0].code, "not_kospi_or_not_found")
 
 
 if __name__ == "__main__":

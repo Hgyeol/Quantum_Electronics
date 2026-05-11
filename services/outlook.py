@@ -39,10 +39,34 @@ class OutlookService:
         )
 
     def build_report(self, stock_code: str, stock_name: str | None = None) -> OutlookReport:
-        stock = lookup_stock_master(stock_code) or lookup_dart_stock_mapping(stock_code)
+        stock = lookup_stock_master(stock_code)
         normalized_code = stock["stock_code"] if stock else stock_code.strip()
         display_name = stock_name or (stock["corp_name"] if stock else normalized_code)
         errors: list[AnalysisError] = []
+
+        if not stock:
+            errors.append(
+                AnalysisError(
+                    source="stock_lookup",
+                    code="not_kospi_or_not_found",
+                    message=(
+                        f"'{stock_code}' was not found in the local KOSPI stock master. "
+                        "LLM analysis was skipped."
+                    ),
+                )
+            )
+            score = combine_signals()
+            return OutlookReport(
+                stock_code=normalized_code,
+                stock_name=stock_name,
+                summary=f"{display_name} outlook is unavailable because the stock is not in the KOSPI master.",
+                score=score,
+                quant_signals=[],
+                ai_signals=[],
+                financial_signals=[],
+                evidence=[],
+                errors=errors,
+            )
 
         quant_signals = self._get_quant_signals(normalized_code, display_name, errors)
         evidence = []
