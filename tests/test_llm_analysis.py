@@ -108,7 +108,9 @@ class LLMAnalysisTests(unittest.TestCase):
         evidence = [Evidence(evidence_id="fin-1", kind="financial", source="DART", title="재무제표")]
         prompt = build_evidence_prompt(evidence)
 
-        self.assertIn("Use only evidence_id values shown below", prompt)
+        self.assertIn("반드시 한국어로만 답한다", prompt)
+        self.assertIn("score는 반드시 -2, -1, 0, 1, 2", prompt)
+        self.assertIn("evidence_ids는 아래에 표시된 evidence_id만 사용한다", prompt)
         self.assertIn("evidence_id: fin-1", prompt)
 
     def test_openai_responses_adapter_parses_output_text(self):
@@ -121,6 +123,7 @@ class LLMAnalysisTests(unittest.TestCase):
         self.assertEqual(result.errors, [])
         self.assertEqual(result.signals[0].direction, "positive")
         self.assertEqual(session.calls[0][1]["json"]["model"], "gpt-test")
+        self.assertEqual(session.calls[0][1]["json"]["temperature"], 0)
 
 
 if __name__ == "__main__":

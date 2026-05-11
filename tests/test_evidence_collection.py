@@ -177,6 +177,16 @@ class EvidenceCollectionTests(unittest.TestCase):
         self.assertEqual(result.titles[0].provider, "인포스탁")
         self.assertEqual(result.titles[0].serial, "2026051115035353942")
 
+    def test_kis_news_title_auth_not_initialized_error_is_clear(self):
+        def fake_news_title(fid_input_iscd):
+            raise AttributeError("'tuple' object has no attribute 'my_url'")
+
+        result = fetch_kis_news_titles("005930", "삼성전자", news_title_fn=fake_news_title)
+
+        self.assertEqual(result.titles, [])
+        self.assertEqual(result.errors[0].code, "auth_not_initialized")
+        self.assertIn("KIS auth is not initialized", result.errors[0].message)
+
     def test_naver_news_by_kis_titles_returns_naver_evidence(self):
         session = MockSession(
             MockResponse(

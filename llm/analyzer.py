@@ -130,6 +130,7 @@ class OpenAIResponsesAnalyzer(StructuredLLMAnalyzer):
                 "model": self.model,
                 "input": prompt,
                 "text": {"format": {"type": "json_object"}},
+                "temperature": 0,
             },
             timeout=self.timeout,
         )
@@ -167,11 +168,18 @@ def build_evidence_prompt(evidence: list[Evidence]) -> str:
         )
 
     return (
-        "You analyze only the evidence below. Do not use facts that are not present. "
+        "아래 evidence만 근거로 한국 주식 투자 전망 신호를 작성한다. "
+        "반드시 한국어로만 답한다. 영어 회사명 대신 evidence의 한국어 종목명을 우선 사용한다. "
+        "evidence에 없는 사실, 추정, 일반 지식은 사용하지 않는다. "
+        "같은 입력에서는 같은 결론을 내리도록 보수적으로 판단한다. "
+        "상승/하락 근거가 섞여 있거나 근거가 약하면 neutral, score 0을 선택한다. "
+        "score는 반드시 -2, -1, 0, 1, 2 중 하나만 사용한다. "
+        "positive는 명확한 호재가 악재보다 강할 때만, negative는 명확한 악재가 호재보다 강할 때만 사용한다. "
+        "summary는 2문장 이내로, 긍정 근거와 부정/리스크 근거가 있으면 둘 다 언급한다. "
         "Return one JSON object matching this schema: "
         '{"label": str, "direction": "positive|negative|neutral", "score": int, '
         '"summary": str, "evidence_ids": [str], "confidence": float}. '
-        "The direction and score must agree: positive > 0, negative < 0, neutral = 0. "
-        "Use only evidence_id values shown below.\n\n"
+        "direction과 score는 반드시 일치해야 한다: positive > 0, negative < 0, neutral = 0. "
+        "evidence_ids는 아래에 표시된 evidence_id만 사용한다.\n\n"
         + "\n\n---\n\n".join(evidence_lines)
     )

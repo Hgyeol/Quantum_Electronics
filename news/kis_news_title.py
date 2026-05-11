@@ -71,12 +71,17 @@ def fetch_kis_news_titles(
         fetch_fn = news_title_fn or _load_kis_news_title_tool()
         df = _call_news_title(fetch_fn, stock_code)
     except Exception as exc:
+        message = str(exc)
+        code = "fetch_failed"
+        if "my_url" in message or "_TRENV" in message:
+            code = "auth_not_initialized"
+            message = "KIS auth is not initialized. Call kis_auth.auth(...) before KIS news-title collection."
         return KISNewsTitleResult(
             errors=[
                 AnalysisError(
                     source="kis_news_title",
-                    code="fetch_failed",
-                    message=f"KIS news-title fetch failed: {exc}",
+                    code=code,
+                    message=message if code != "fetch_failed" else f"KIS news-title fetch failed: {exc}",
                 )
             ]
         )
