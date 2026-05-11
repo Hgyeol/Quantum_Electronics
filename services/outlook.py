@@ -15,7 +15,8 @@ from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosure
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
 from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
-from news.naver_news_api import build_stock_news_query, search_naver_news
+from news.kis_news_title import fetch_kis_news_titles
+from news.naver_news_api import build_stock_news_query, search_naver_news, search_naver_news_by_titles
 from quant.engine import QuantEngine
 from quant.models import QuantSignal
 
@@ -73,13 +74,25 @@ class OutlookService:
 
         news_end = datetime.now(timezone.utc)
         news_start = news_end - timedelta(days=7)
-        news_result = search_naver_news(
-            build_stock_news_query(display_name),
+        kis_news_result = fetch_kis_news_titles(normalized_code, display_name, limit=5)
+        errors.extend(kis_news_result.errors)
+        kis_title_naver_result = search_naver_news_by_titles(
+            [item.title for item in kis_news_result.titles],
+            max_results=5,
             start_date=news_start,
             end_date=news_end,
         )
-        evidence.extend(news_result.evidence)
-        errors.extend(news_result.errors)
+        evidence.extend(kis_title_naver_result.evidence)
+        errors.extend(kis_title_naver_result.errors)
+
+        stock_query_naver_result = search_naver_news(
+            build_stock_news_query(display_name),
+            display=5,
+            start_date=news_start,
+            end_date=news_end,
+        )
+        evidence.extend(stock_query_naver_result.evidence)
+        errors.extend(stock_query_naver_result.errors)
 
         corp_code = lookup_corp_code(normalized_code)
         financial_signals = []

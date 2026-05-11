@@ -115,5 +115,41 @@ def search_naver_news(
     )
 
 
+def search_naver_news_by_titles(
+    titles: list[str],
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    per_title_display: int = 1,
+    max_results: int = 5,
+    sort: str = "date",
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    session: Any = requests,
+    timeout: float = 10.0,
+) -> NewsSearchResult:
+    evidence = []
+    errors = []
+
+    for title in titles:
+        if len(evidence) >= max_results:
+            break
+        result = search_naver_news(
+            title,
+            client_id=client_id,
+            client_secret=client_secret,
+            display=per_title_display,
+            sort=sort,
+            start_date=start_date,
+            end_date=end_date,
+            session=session,
+            timeout=timeout,
+        )
+        errors.extend(result.errors)
+        evidence.extend(result.evidence)
+
+    normalized = normalize_evidence(evidence, start_date=start_date, end_date=end_date)
+    return NewsSearchResult(evidence=normalized[:max_results], errors=errors)
+
+
 def build_stock_news_query(stock_name: str) -> str:
     return f'"{stock_name}" +경제 | +증권 | +금융 | +실적'

@@ -5,10 +5,13 @@ from datetime import datetime, timezone
 from io import BytesIO
 from unittest.mock import patch
 
+import pandas as pd
+
 from analysis.evidence import normalize_evidence
 from analysis.models import Evidence
 from disclosure.disclosure_api import download_disclosure_text, enrich_disclosure_texts, search_disclosures
-from news.naver_news_api import build_stock_news_query, search_naver_news
+from news.kis_news_title import fetch_kis_news_titles
+from news.naver_news_api import build_stock_news_query, search_naver_news, search_naver_news_by_titles
 from news.news_crawler import fetch_article_text
 
 
@@ -133,6 +136,74 @@ class EvidenceCollectionTests(unittest.TestCase):
             build_stock_news_query("삼성전자"),
             '"삼성전자" +경제 | +증권 | +금융 | +실적',
         )
+
+    def test_kis_news_title_rows_are_collected_as_search_titles(self):
+        def fake_news_title(fid_input_iscd):
+            self.assertEqual(fid_input_iscd, "005930")
+            return pd.DataFrame(
+                [
+                    {
+                        "cntt_usiq_srno": "2026051115035353942",
+                        "news_ofer_entp_code": "7",
+                        "data_dt": "20260511",
+                        "data_tm": "150353",
+                        "hts_pbnt_titl_cntt": "외국계 순매수,도 상위종목(코스피) 금액기준",
+                        "news_lrdv_code": "01",
+                        "dorg": "인포스탁",
+                        "iscd1": "005930",
+                        "kor_isnm1": "삼성전자",
+                    },
+                    {
+                        "cntt_usiq_srno": "other",
+                        "data_dt": "20260511",
+                        "data_tm": "150400",
+                        "hts_pbnt_titl_cntt": "다른 종목 뉴스",
+                        "dorg": "인포스탁",
+                        "iscd1": "000660",
+                    },
+                ]
+            )
+
+        result = fetch_kis_news_titles(
+            "005930",
+            "삼성전자",
+            limit=5,
+            news_title_fn=fake_news_title,
+        )
+
+        self.assertEqual(result.errors, [])
+        self.assertEqual(len(result.titles), 1)
+        self.assertEqual(result.titles[0].title, "외국계 순매수,도 상위종목(코스피) 금액기준")
+        self.assertEqual(result.titles[0].provider, "인포스탁")
+        self.assertEqual(result.titles[0].serial, "2026051115035353942")
+
+    def test_naver_news_by_kis_titles_returns_naver_evidence(self):
+        session = MockSession(
+            MockResponse(
+                payload={
+                    "items": [
+                        {
+                            "title": "네이버에서 찾은 실제 기사",
+                            "description": "검색 결과",
+                            "link": "https://news.example.com/kis-title",
+                            "pubDate": "Mon, 04 May 2026 09:00:00 +0900",
+                        }
+                    ]
+                }
+            )
+        )
+
+        result = search_naver_news_by_titles(
+            ["외국계 순매수,도 상위종목(코스피) 금액기준"],
+            client_id="id",
+            client_secret="secret",
+            session=session,
+        )
+
+        self.assertEqual(result.errors, [])
+        self.assertEqual(len(result.evidence), 1)
+        self.assertEqual(result.evidence[0].source, "Naver News")
+        self.assertEqual(session.calls[0][1]["params"]["query"], "외국계 순매수,도 상위종목(코스피) 금액기준")
 
     def test_naver_missing_credentials_returns_error_without_request(self):
         session = MockSession(MockResponse())

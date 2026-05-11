@@ -33,7 +33,8 @@ from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosure
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
 from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
-from news.naver_news_api import build_stock_news_query, search_naver_news
+from news.kis_news_title import fetch_kis_news_titles
+from news.naver_news_api import build_stock_news_query, search_naver_news, search_naver_news_by_titles
 from services.outlook import lookup_corp_code, lookup_stock_master
 
 
@@ -77,6 +78,7 @@ def main() -> int:
     )
     parser.add_argument("--stock-name", help="Optional stock name when query is a stock code")
     parser.add_argument("--news-display", type=int, default=5, help="Naver news item count")
+    parser.add_argument("--kis-news-limit", type=int, default=5, help="KIS news-title item count")
     parser.add_argument("--news-days", type=int, default=7, help="Keep only news from the last N days")
     parser.add_argument("--days", type=int, default=45, help="DART disclosure lookback days")
     parser.add_argument(
@@ -157,6 +159,17 @@ def main() -> int:
 
     news_end = datetime.now(timezone.utc)
     news_start = news_end - timedelta(days=args.news_days)
+    kis_news_result = fetch_kis_news_titles(stock_code, stock_name, limit=args.kis_news_limit)
+    errors.extend(kis_news_result.errors)
+    kis_title_naver_result = search_naver_news_by_titles(
+        [item.title for item in kis_news_result.titles],
+        max_results=args.kis_news_limit,
+        start_date=news_start,
+        end_date=news_end,
+    )
+    evidence.extend(kis_title_naver_result.evidence)
+    errors.extend(kis_title_naver_result.errors)
+
     news_query = build_stock_news_query(stock_name)
     news_result = search_naver_news(
         news_query,
@@ -217,12 +230,15 @@ def main() -> int:
         "counts": {
             "evidence": len(evidence),
             "news": len([item for item in evidence if item.kind == "news"]),
+            "kis_news": len([item for item in evidence if item.kind == "news" and item.source.startswith("KIS:")]),
+            "naver_news": len([item for item in evidence if item.kind == "news" and item.source == "Naver News"]),
             "disclosures": len([item for item in evidence if item.kind == "disclosure"]),
             "financial": len([item for item in evidence if item.kind == "financial"]),
             "financial_signals": len(financial_signals),
             "llm_signals": len(llm_result.signals),
             "errors": len(errors),
         },
+        "kis_news_titles": [item.title for item in kis_news_result.titles],
         "llm_signals": model_dump_jsonable(llm_result.signals),
         "financial_signals": model_dump_jsonable(financial_signals),
         "evidence_preview": [
