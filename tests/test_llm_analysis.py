@@ -109,6 +109,9 @@ class LLMAnalysisTests(unittest.TestCase):
         prompt = build_evidence_prompt(evidence)
 
         self.assertIn("반드시 한국어로만 답한다", prompt)
+        self.assertIn("투자 전망 판단의 우선순위", prompt)
+        self.assertIn("노조, 성과급, 일반 정치 발언", prompt)
+        self.assertIn("직접 영향이 명시된 경우에만 score에 반영", prompt)
         self.assertIn("score는 반드시 -2, -1, 0, 1, 2", prompt)
         self.assertIn("evidence_ids는 아래에 표시된 evidence_id만 사용한다", prompt)
         self.assertIn("evidence_id: fin-1", prompt)
