@@ -179,11 +179,15 @@ def build_evidence_prompt(evidence: list[Evidence]) -> str:
         "낮은 우선순위: 노조, 성과급, 일반 정치 발언, 시장 전체 분위기, 코스피 전체 전망, 단순 인물 발언. "
         "낮은 우선순위 이슈는 evidence에 매출/이익/생산 차질/비용 증가/규제 비용 같은 직접 영향이 명시된 경우에만 score에 반영한다. "
         "직접 영향이 명시되지 않은 노조/성과급/정치 발언은 summary에서 부수적 리스크로 짧게만 언급하고 direction을 바꾸지 않는다. "
+        "노조/성과급/보상 이슈는 언론 또는 증권사의 비용 추정치가 있어도 단독으로 direction 또는 score를 바꾸지 않는다. "
+        "이 이슈를 score에 반영하려면 회사 공시, 실적 발표, 가이던스, 실제 생산 차질, 장기 파업, 확정 비용 증가가 evidence에 명시되어야 한다. "
+        "단순 요구안, 협상, 전망, 증권사 추정은 잠재적 부수 리스크로만 다룬다. "
         "시장 전체 뉴스는 해당 종목의 실적, 업황, 수급과 직접 연결된 문장이 있을 때만 종목 전망 근거로 사용한다. "
         "상승/하락 근거가 섞여 있거나 근거가 약하면 neutral, score 0을 선택한다. "
         "score는 반드시 -2, -1, 0, 1, 2 중 하나만 사용한다. "
         "positive는 명확한 호재가 악재보다 강할 때만, negative는 명확한 악재가 호재보다 강할 때만 사용한다. "
-        "summary는 2문장 이내로, 긍정 근거와 부정/리스크 근거가 있으면 둘 다 언급한다. "
+        "summary는 2문장 이내로 작성한다. 첫 문장은 반드시 실적/업황/수급/주가 모멘텀/재무/공시 중 가장 중요한 고우선순위 근거로 시작한다. "
+        "노조/성과급/정치 발언 같은 낮은 우선순위 이슈는 꼭 필요할 때 마지막에 1회만 짧게 언급한다. "
         "Return one JSON object matching this schema: "
         '{"label": str, "direction": "positive|negative|neutral", "score": int, '
         '"summary": str, "evidence_ids": [str], "confidence": float}. '
