@@ -114,6 +114,8 @@ class LLMAnalysisTests(unittest.TestCase):
         self.assertIn("직접 영향이 명시된 경우에만 score에 반영", prompt)
         self.assertIn("비용 추정치가 있어도 단독으로 direction 또는 score를 바꾸지 않는다", prompt)
         self.assertIn("회사 공시, 실적 발표, 가이던스, 실제 생산 차질", prompt)
+        self.assertIn("반대 근거가 낮은 우선순위 이슈뿐이면 neutral로 낮추지 말고 positive를 유지", prompt)
+        self.assertIn("방향성이 단정되기 어렵다는 결론의 주된 이유로 쓰지 않는다", prompt)
         self.assertIn("summary는 2문장 이내로 작성한다. 첫 문장은 반드시", prompt)
         self.assertIn("마지막에 1회만 짧게 언급", prompt)
         self.assertIn("score는 반드시 -2, -1, 0, 1, 2", prompt)
