@@ -8,9 +8,10 @@ Usage:
     python scripts/test_llm_stock_analysis.py 삼성전자
     python scripts/test_llm_stock_analysis.py 005930 --stock-name 삼성전자
 
-The script loads `.env` if present, collects Naver news, DART disclosures, DART
-financial statements, derives deterministic financial signals, then sends the
-collected Evidence to the configured LLM analyzer.
+The script loads `.env` if present, collects KIS quant signals, Naver news,
+DART disclosures, and DART financial statements. It derives deterministic
+financial signals, sends the collected Evidence to the configured LLM analyzer,
+then combines quant + LLM + financial scores into the final outlook score.
 
 Required for live LLM analysis:
     DISCLOSURE_CRTFC_KEY
@@ -30,12 +31,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from analysis.scoring import combine_signals
 from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosures
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
 from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
 from news.kis_news_title import fetch_kis_news_titles
 from news.naver_news_api import build_stock_news_query, search_naver_news, search_naver_news_by_titles
+from quant.engine import QuantEngine
 from services.outlook import lookup_corp_code, lookup_stock_master
 
 
@@ -82,6 +85,7 @@ def main() -> int:
     parser.add_argument("--kis-news-limit", type=int, default=5, help="KIS news-title item count")
     parser.add_argument("--kis-auth", action="store_true", help="Authenticate KIS before collecting KIS news titles")
     parser.add_argument("--kis-server", default="prod", choices=["prod", "vps"], help="KIS server for --kis-auth")
+    parser.add_argument("--quant-env", default="real", choices=["real", "demo"], help="KIS env_dv for quant APIs")
     parser.add_argument("--news-days", type=int, default=7, help="Keep only news from the last N days")
     parser.add_argument("--days", type=int, default=45, help="DART disclosure lookback days")
     parser.add_argument(
@@ -121,6 +125,7 @@ def main() -> int:
 
     errors = []
     evidence = []
+    quant_signals = []
     financial_signals = []
     kis_authenticated = False
     if args.kis_auth:
@@ -164,6 +169,7 @@ def main() -> int:
             "skip_reason": "not_kospi_or_not_found",
             "counts": {
                 "evidence": 0,
+                "quant_signals": 0,
                 "news": 0,
                 "disclosures": 0,
                 "financial": 0,
@@ -171,6 +177,8 @@ def main() -> int:
                 "llm_signals": 0,
                 "errors": len(errors),
             },
+            "score": model_dump_jsonable(combine_signals()),
+            "quant_signals": [],
             "llm_signals": [],
             "financial_signals": [],
             "evidence_preview": [],
@@ -178,6 +186,18 @@ def main() -> int:
         }
         print(json.dumps(output, ensure_ascii=False, indent=2))
         return 0
+
+    try:
+        quant_signals = QuantEngine().get_signals(stock_code, stock_name, env_dv=args.quant_env)
+    except Exception as exc:
+        errors.append(
+            {
+                "source": "quant",
+                "code": "failed",
+                "message": f"Quant analysis failed: {exc}",
+                "recoverable": True,
+            }
+        )
 
     news_end = datetime.now(timezone.utc)
     news_start = news_end - timedelta(days=args.news_days)
@@ -239,10 +259,16 @@ def main() -> int:
     analyzer = OpenAIResponsesAnalyzer() if os.getenv("OPENAI_API_KEY") else DisabledLLMAnalyzer()
     llm_result = analyzer.analyze_evidence(evidence)
     errors.extend(llm_result.errors)
+    score = combine_signals(
+        quant_signals=quant_signals,
+        ai_signals=llm_result.signals,
+        financial_signals=financial_signals,
+    )
 
     output = {
         "stock": {"code": stock_code, "name": stock_name, "corp_code": corp_code},
         "kis_authenticated": kis_authenticated,
+        "score": model_dump_jsonable(score),
         "news_query": news_query,
         "news_filter": {
             "sort": "date",
@@ -252,6 +278,7 @@ def main() -> int:
         },
         "counts": {
             "evidence": len(evidence),
+            "quant_signals": len(quant_signals),
             "news": len([item for item in evidence if item.kind == "news"]),
             "kis_news": len([item for item in evidence if item.kind == "news" and item.source.startswith("KIS:")]),
             "naver_news": len([item for item in evidence if item.kind == "news" and item.source == "Naver News"]),
@@ -262,6 +289,7 @@ def main() -> int:
             "errors": len(errors),
         },
         "kis_news_titles": [item.title for item in kis_news_result.titles],
+        "quant_signals": model_dump_jsonable(quant_signals),
         "llm_signals": model_dump_jsonable(llm_result.signals),
         "financial_signals": model_dump_jsonable(financial_signals),
         "evidence_preview": [
