@@ -1,11 +1,13 @@
 import os
 import unittest
+import zipfile
 from datetime import datetime, timezone
+from io import BytesIO
 from unittest.mock import patch
 
 from analysis.evidence import normalize_evidence
 from analysis.models import Evidence
-from disclosure.disclosure_api import search_disclosures
+from disclosure.disclosure_api import download_disclosure_text, enrich_disclosure_texts, search_disclosures
 from news.naver_news_api import search_naver_news
 from news.news_crawler import fetch_article_text
 
@@ -95,7 +97,16 @@ class EvidenceCollectionTests(unittest.TestCase):
 
     def test_naver_missing_credentials_returns_error_without_request(self):
         session = MockSession(MockResponse())
-        with patch.dict(os.environ, {"NAVER_CLIENT_ID": "", "NAVER_CLIENT_SECRET": ""}, clear=False):
+        with patch.dict(
+            os.environ,
+            {
+                "NAVER_NEWS_API_CLIENT": "",
+                "NAVER_NEWS_API_SECRET": "",
+                "NAVER_CLIENT_ID": "",
+                "NAVER_CLIENT_SECRET": "",
+            },
+            clear=False,
+        ):
             result = search_naver_news("삼성전자", session=session)
 
         self.assertEqual(result.evidence, [])
@@ -140,6 +151,44 @@ class EvidenceCollectionTests(unittest.TestCase):
         self.assertEqual(result.error, None)
         self.assertIn("첫 문장", result.text)
         self.assertIn("둘째 문장", result.text)
+
+    def test_disclosure_zip_document_is_extracted_to_text(self):
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("document.xml", "<DOCUMENT><BODY>공시 원문 내용</BODY></DOCUMENT>")
+
+        result = download_disclosure_text(
+            "20260501000123",
+            api_key="dart-key",
+            session=MockSession(MockResponse(content=buffer.getvalue())),
+        )
+
+        self.assertEqual(result.error, None)
+        self.assertIn("공시 원문 내용", result.text)
+
+    def test_enrich_disclosure_texts_attaches_content(self):
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("document.xml", "<DOCUMENT><BODY>추출된 공시 본문</BODY></DOCUMENT>")
+
+        evidence = [
+            Evidence(
+                evidence_id="disclosure-1",
+                kind="disclosure",
+                source="DART",
+                title="분기보고서",
+                metadata={"rcept_no": "20260501000123"},
+            )
+        ]
+
+        result = enrich_disclosure_texts(
+            evidence,
+            api_key="dart-key",
+            session=MockSession(MockResponse(content=buffer.getvalue())),
+        )
+
+        self.assertEqual(result.errors, [])
+        self.assertIn("추출된 공시 본문", result.evidence[0].content)
 
 
 if __name__ == "__main__":

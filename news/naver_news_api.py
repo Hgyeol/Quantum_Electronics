@@ -43,8 +43,8 @@ def get_naver_credentials(
     client_secret: str | None = None,
 ) -> tuple[str | None, str | None]:
     return (
-        client_id or os.getenv("NAVER_CLIENT_ID") or os.getenv("NAVER_NEWS_API_CLIENT"),
-        client_secret or os.getenv("NAVER_CLIENT_SECRET") or os.getenv("NAVER_NEWS_API_SECRET"),
+        client_id or os.getenv("NAVER_NEWS_API_CLIENT") or os.getenv("NAVER_CLIENT_ID"),
+        client_secret or os.getenv("NAVER_NEWS_API_SECRET") or os.getenv("NAVER_CLIENT_SECRET"),
     )
 
 

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from analysis.models import OutlookReport
 from analysis.scoring import combine_signals
 from quant.models import QuantSignal
+from services.outlook import lookup_dart_stock_mapping, lookup_stock_master
 from web.main import app, get_outlook_service
 
 
@@ -70,6 +71,20 @@ class FastAPIServiceTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "partial")
+
+    def test_lookup_dart_stock_mapping_by_exact_name(self):
+        stock = lookup_dart_stock_mapping("삼성전자")
+
+        self.assertIsNotNone(stock)
+        self.assertEqual(stock["stock_code"], "005930")
+        self.assertEqual(stock["corp_code"], "00126380")
+
+    def test_lookup_stock_master_by_exact_name(self):
+        stock = lookup_stock_master("삼성전자")
+
+        self.assertIsNotNone(stock)
+        self.assertEqual(stock["stock_code"], "005930")
+        self.assertEqual(stock["corp_name"], "삼성전자")
 
 
 if __name__ == "__main__":

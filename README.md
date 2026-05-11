@@ -16,9 +16,9 @@ Create local environment values from `.env.example`. Do not commit real API keys
 
 ```bash
 export KIS_CONFIG_FILE=/absolute/path/to/kis_devlp.yaml
-export DART_API_KEY=
-export NAVER_CLIENT_ID=
-export NAVER_CLIENT_SECRET=
+export DISCLOSURE_CRTFC_KEY=
+export NAVER_NEWS_API_CLIENT=
+export NAVER_NEWS_API_SECRET=
 export OPENAI_API_KEY=
 export OPENAI_MODEL=gpt-5.2
 export ENABLE_REAL_TRADING=false
@@ -57,6 +57,8 @@ curl "http://127.0.0.1:8000/outlook/stock/005930?stock_name=%EC%82%BC%EC%84%B1%E
 ```
 
 Without KIS, DART, Naver, or LLM credentials, the API still returns a structured report with neutral/partial signals and recoverable error entries.
+
+Stock-name lookup uses the root `kospi.csv` stock master when present. DART disclosure/financial collection still needs a `corp_code`, which is resolved from `disclosure/kospi.csv`; if that mapping is missing, the service returns a recoverable DART mapping error.
 
 ## Project Structure
 

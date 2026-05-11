@@ -32,8 +32,14 @@ class DisclosureDocumentResult:
     error: AnalysisError | None = None
 
 
+@dataclass
+class DisclosureTextEnrichmentResult:
+    evidence: list[Evidence] = field(default_factory=list)
+    errors: list[AnalysisError] = field(default_factory=list)
+
+
 def get_dart_api_key(api_key: str | None = None) -> str | None:
-    return api_key or os.getenv("DART_API_KEY") or os.getenv("DISCLOSURE_CRTFC_KEY")
+    return api_key or os.getenv("DISCLOSURE_CRTFC_KEY") or os.getenv("DART_API_KEY")
 
 
 def _parse_date(value: str | None) -> datetime | None:
@@ -62,7 +68,7 @@ def search_disclosures(
                 AnalysisError(
                     source="dart_disclosure",
                     code="missing_api_key",
-                    message="DART_API_KEY is not configured",
+                    message="DISCLOSURE_CRTFC_KEY is not configured",
                 )
             ]
         )
@@ -137,7 +143,7 @@ def download_disclosure_text(
             error=AnalysisError(
                 source="dart_disclosure",
                 code="missing_api_key",
-                message="DART_API_KEY is not configured",
+                message="DISCLOSURE_CRTFC_KEY is not configured",
             )
         )
 
@@ -166,3 +172,48 @@ def download_disclosure_text(
         return DisclosureDocumentResult(text=_TAG_RE.sub(" ", text).strip() or None)
 
     return DisclosureDocumentResult(text="\n".join(texts).strip() or None)
+
+
+def enrich_disclosure_texts(
+    evidence: list[Evidence],
+    max_documents: int = 3,
+    max_chars: int = 5000,
+    api_key: str | None = None,
+    session: Any = requests,
+    timeout: float = 10.0,
+) -> DisclosureTextEnrichmentResult:
+    """Download DART disclosure zip documents and attach extracted text.
+
+    DART document.xml commonly returns a zip payload. `download_disclosure_text`
+    extracts it in memory; this helper keeps the original Evidence shape and
+    fills `content` for the first `max_documents` disclosure items.
+    """
+    enriched: list[Evidence] = []
+    errors: list[AnalysisError] = []
+    downloaded = 0
+
+    for item in evidence:
+        if item.kind != "disclosure" or downloaded >= max_documents:
+            enriched.append(item)
+            continue
+
+        rcept_no = item.metadata.get("rcept_no")
+        if not rcept_no:
+            enriched.append(item)
+            continue
+
+        result = download_disclosure_text(
+            str(rcept_no),
+            api_key=api_key,
+            session=session,
+            timeout=timeout,
+        )
+        if result.error:
+            errors.append(result.error)
+            enriched.append(item)
+            continue
+
+        downloaded += 1
+        enriched.append(item.model_copy(update={"content": (result.text or "")[:max_chars]}))
+
+    return DisclosureTextEnrichmentResult(evidence=enriched, errors=errors)

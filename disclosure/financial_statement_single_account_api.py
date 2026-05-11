@@ -47,7 +47,7 @@ class FinancialStatementFetchResult:
 
 
 def get_dart_api_key(api_key: str | None = None) -> str | None:
-    return api_key or os.getenv("DART_API_KEY") or os.getenv("DISCLOSURE_CRTFC_KEY")
+    return api_key or os.getenv("DISCLOSURE_CRTFC_KEY") or os.getenv("DART_API_KEY")
 
 
 def fetch_financial_statements(
@@ -60,7 +60,7 @@ def fetch_financial_statements(
 ) -> list[dict[str, Any]]:
     dart_key = get_dart_api_key(api_key)
     if not dart_key:
-        raise ValueError("DART_API_KEY is not configured")
+        raise ValueError("DISCLOSURE_CRTFC_KEY is not configured")
 
     url = "https://opendart.fss.or.kr/api/fnlttSinglAcnt.xml"
     params = {
@@ -121,7 +121,7 @@ def fetch_all_reports_last_n_years(
                 AnalysisError(
                     source="dart_financial",
                     code="missing_api_key",
-                    message="DART_API_KEY is not configured",
+                    message="DISCLOSURE_CRTFC_KEY is not configured",
                 )
             ],
         )
