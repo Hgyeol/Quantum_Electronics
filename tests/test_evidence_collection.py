@@ -131,7 +131,7 @@ class EvidenceCollectionTests(unittest.TestCase):
     def test_build_stock_news_query_includes_investment_terms(self):
         self.assertEqual(
             build_stock_news_query("삼성전자"),
-            "삼성전자 주가 OR 실적 OR 공시 OR 투자",
+            "삼성전자",
         )
 
     def test_naver_missing_credentials_returns_error_without_request(self):

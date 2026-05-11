@@ -116,4 +116,4 @@ def search_naver_news(
 
 
 def build_stock_news_query(stock_name: str) -> str:
-    return f"{stock_name} 주가 OR 실적 OR 공시 OR 투자"
+    return stock_name
