@@ -116,4 +116,4 @@ def search_naver_news(
 
 
 def build_stock_news_query(stock_name: str) -> str:
-    return stock_name
+    return f'"{stock_name}" 주가 | 실적 | 공시 | 투자'

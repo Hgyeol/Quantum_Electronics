@@ -60,7 +60,7 @@ Without KIS, DART, Naver, or LLM credentials, the API still returns a structured
 
 Stock-name lookup uses the root `kospi.csv` stock master when present. DART disclosure/financial collection still needs a `corp_code`, which is resolved from `disclosure/kospi.csv`; if that mapping is missing, the service returns a recoverable DART mapping error.
 
-News collection searches by stock name, requests Naver results in latest-first order, and keeps only recent items. The manual LLM check script defaults to the last 7 days and can be adjusted with `--news-days`.
+News collection searches by exact stock name plus Naver search operators, for example `"삼성전자" 주가 | 실적 | 공시 | 투자`, requests Naver results in latest-first order, and keeps only recent items. The manual LLM check script defaults to the last 7 days and can be adjusted with `--news-days`.
 
 ## Project Structure
 
