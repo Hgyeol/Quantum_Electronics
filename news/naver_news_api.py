@@ -6,6 +6,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from email.utils import parsedate_to_datetime
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -54,6 +55,8 @@ def search_naver_news(
     client_secret: str | None = None,
     display: int = 10,
     sort: str = "date",
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     session: Any = requests,
     timeout: float = 10.0,
 ) -> NewsSearchResult:
@@ -107,4 +110,10 @@ def search_naver_news(
         for idx, item in enumerate(items)
     ]
 
-    return NewsSearchResult(evidence=normalize_evidence(evidence))
+    return NewsSearchResult(
+        evidence=normalize_evidence(evidence, start_date=start_date, end_date=end_date)
+    )
+
+
+def build_stock_news_query(stock_name: str) -> str:
+    return f"{stock_name} 주가 OR 실적 OR 공시 OR 투자"

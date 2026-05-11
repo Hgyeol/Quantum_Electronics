@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +33,7 @@ from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosure
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
 from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
-from news.naver_news_api import search_naver_news
+from news.naver_news_api import build_stock_news_query, search_naver_news
 from services.outlook import lookup_corp_code, lookup_dart_stock_mapping, lookup_stock_master
 
 
@@ -77,6 +77,7 @@ def main() -> int:
     )
     parser.add_argument("--stock-name", help="Optional stock name when query is a stock code")
     parser.add_argument("--news-display", type=int, default=5, help="Naver news item count")
+    parser.add_argument("--news-days", type=int, default=7, help="Keep only news from the last N days")
     parser.add_argument("--days", type=int, default=45, help="DART disclosure lookback days")
     parser.add_argument(
         "--disclosure-docs",
@@ -135,7 +136,15 @@ def main() -> int:
                 }
             )
 
-    news_result = search_naver_news(stock_name, display=args.news_display)
+    news_end = datetime.now(timezone.utc)
+    news_start = news_end - timedelta(days=args.news_days)
+    news_query = build_stock_news_query(stock_name)
+    news_result = search_naver_news(
+        news_query,
+        display=args.news_display,
+        start_date=news_start,
+        end_date=news_end,
+    )
     evidence.extend(news_result.evidence)
     errors.extend(news_result.errors)
 
@@ -179,6 +188,13 @@ def main() -> int:
 
     output = {
         "stock": {"code": stock_code, "name": stock_name, "corp_code": corp_code},
+        "news_query": news_query,
+        "news_filter": {
+            "sort": "date",
+            "days": args.news_days,
+            "start_date": news_start.isoformat(),
+            "end_date": news_end.isoformat(),
+        },
         "counts": {
             "evidence": len(evidence),
             "news": len([item for item in evidence if item.kind == "news"]),

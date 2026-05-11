@@ -8,7 +8,7 @@ from unittest.mock import patch
 from analysis.evidence import normalize_evidence
 from analysis.models import Evidence
 from disclosure.disclosure_api import download_disclosure_text, enrich_disclosure_texts, search_disclosures
-from news.naver_news_api import search_naver_news
+from news.naver_news_api import build_stock_news_query, search_naver_news
 from news.news_crawler import fetch_article_text
 
 
@@ -94,6 +94,45 @@ class EvidenceCollectionTests(unittest.TestCase):
         self.assertEqual(len(result.evidence), 1)
         self.assertEqual(result.evidence[0].title, "삼성전자 실적 개선")
         self.assertEqual(result.evidence[0].kind, "news")
+
+    def test_naver_news_filters_by_recent_date(self):
+        session = MockSession(
+            MockResponse(
+                payload={
+                    "items": [
+                        {
+                            "title": "최근 기사",
+                            "description": "최근",
+                            "link": "https://news.example.com/recent",
+                            "pubDate": "Mon, 04 May 2026 09:00:00 +0900",
+                        },
+                        {
+                            "title": "과거 기사",
+                            "description": "과거",
+                            "link": "https://news.example.com/old",
+                            "pubDate": "Mon, 01 Jan 2024 09:00:00 +0900",
+                        },
+                    ]
+                }
+            )
+        )
+
+        result = search_naver_news(
+            "삼성전자",
+            client_id="id",
+            client_secret="secret",
+            session=session,
+            start_date=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(len(result.evidence), 1)
+        self.assertEqual(result.evidence[0].title, "최근 기사")
+
+    def test_build_stock_news_query_includes_investment_terms(self):
+        self.assertEqual(
+            build_stock_news_query("삼성전자"),
+            "삼성전자 주가 OR 실적 OR 공시 OR 투자",
+        )
 
     def test_naver_missing_credentials_returns_error_without_request(self):
         session = MockSession(MockResponse())
