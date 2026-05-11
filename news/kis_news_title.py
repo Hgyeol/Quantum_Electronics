@@ -50,6 +50,17 @@ def _row_contains_stock(row: pd.Series, stock_code: str) -> bool:
     return any(str(row.get(f"iscd{idx}", "")).strip() == stock_code for idx in range(1, 11))
 
 
+def _call_news_title(fetch_fn, stock_code: str):
+    kwargs = {"fid_input_iscd": stock_code}
+    if callable(fetch_fn):
+        return fetch_fn(**kwargs)
+    if hasattr(fetch_fn, "invoke"):
+        return fetch_fn.invoke(kwargs)
+    if hasattr(fetch_fn, "func") and callable(fetch_fn.func):
+        return fetch_fn.func(**kwargs)
+    raise TypeError(f"Unsupported KIS news-title callable: {type(fetch_fn).__name__}")
+
+
 def fetch_kis_news_titles(
     stock_code: str,
     stock_name: str,
@@ -58,7 +69,7 @@ def fetch_kis_news_titles(
 ) -> KISNewsTitleResult:
     try:
         fetch_fn = news_title_fn or _load_kis_news_title_tool()
-        df = fetch_fn(fid_input_iscd=stock_code)
+        df = _call_news_title(fetch_fn, stock_code)
     except Exception as exc:
         return KISNewsTitleResult(
             errors=[

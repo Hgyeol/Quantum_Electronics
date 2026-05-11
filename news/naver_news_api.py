@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import hashlib
 from dataclasses import dataclass, field
 from email.utils import parsedate_to_datetime
 from datetime import datetime
@@ -59,6 +60,7 @@ def search_naver_news(
     end_date: datetime | None = None,
     session: Any = requests,
     timeout: float = 10.0,
+    evidence_prefix: str | None = None,
 ) -> NewsSearchResult:
     naver_id, naver_secret = get_naver_credentials(client_id, client_secret)
     if not naver_id or not naver_secret:
@@ -93,9 +95,10 @@ def search_naver_news(
         )
 
     items = response.json().get("items", [])
+    prefix = evidence_prefix or f"news-{hashlib.sha1(query.encode('utf-8')).hexdigest()[:8]}"
     evidence = [
         Evidence(
-            evidence_id=f"news-{idx + 1}",
+            evidence_id=f"{prefix}-{idx + 1}",
             kind="news",
             source="Naver News",
             title=_clean_html(item.get("title")) or "Untitled news",
@@ -110,9 +113,9 @@ def search_naver_news(
         for idx, item in enumerate(items)
     ]
 
-    return NewsSearchResult(
-        evidence=normalize_evidence(evidence, start_date=start_date, end_date=end_date)
-    )
+    normalized = normalize_evidence(evidence, start_date=start_date, end_date=end_date)
+    normalized.sort(key=lambda item: item.published_at or datetime.min, reverse=True)
+    return NewsSearchResult(evidence=normalized)
 
 
 def search_naver_news_by_titles(
@@ -130,7 +133,7 @@ def search_naver_news_by_titles(
     evidence = []
     errors = []
 
-    for title in titles:
+    for idx, title in enumerate(titles):
         if len(evidence) >= max_results:
             break
         result = search_naver_news(
@@ -143,11 +146,13 @@ def search_naver_news_by_titles(
             end_date=end_date,
             session=session,
             timeout=timeout,
+            evidence_prefix=f"kis-news-{idx + 1}",
         )
         errors.extend(result.errors)
         evidence.extend(result.evidence)
 
     normalized = normalize_evidence(evidence, start_date=start_date, end_date=end_date)
+    normalized.sort(key=lambda item: item.published_at or datetime.min, reverse=True)
     return NewsSearchResult(evidence=normalized[:max_results], errors=errors)
 
 
