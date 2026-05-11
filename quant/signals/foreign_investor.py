@@ -32,6 +32,21 @@ logger = logging.getLogger(__name__)
 _LOOKBACK_DAYS = 3   # 누적 집계 기간
 
 
+def _call_inquire_investor(fetch_fn, *, env_dv: str, stock_code: str) -> pd.DataFrame:
+    kwargs = {
+        "env_dv": env_dv,
+        "fid_cond_mrkt_div_code": "J",
+        "fid_input_iscd": stock_code,
+    }
+    if callable(fetch_fn):
+        return fetch_fn(**kwargs)
+    if hasattr(fetch_fn, "invoke"):
+        return fetch_fn.invoke(kwargs)
+    if hasattr(fetch_fn, "func") and callable(fetch_fn.func):
+        return fetch_fn.func(**kwargs)
+    raise TypeError(f"Unsupported KIS inquire_investor callable: {type(fetch_fn).__name__}")
+
+
 def get_foreign_investor_signal(
     stock_code: str,
     stock_name: str,
@@ -58,11 +73,7 @@ def get_foreign_investor_signal(
     )
 
     try:
-        df: pd.DataFrame = inquire_investor(
-            env_dv=env_dv,
-            fid_cond_mrkt_div_code="J",
-            fid_input_iscd=stock_code,
-        )
+        df = _call_inquire_investor(inquire_investor, env_dv=env_dv, stock_code=stock_code)
     except Exception as exc:
         logger.error(f"외인 순매수 조회 오류 ({stock_name}[{stock_code}]): {exc}")
         return _neutral
