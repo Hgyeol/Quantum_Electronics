@@ -16,12 +16,15 @@ class SignalLearningPRDAuditTests(unittest.TestCase):
             result = audit_signal_learning_prd(
                 dataset_path=tmp / "missing_dataset.csv",
                 workflow_dir=tmp / "missing_workflow",
+                features_path=tmp / "missing_features.csv",
+                prices_path=tmp / "missing_prices.csv",
                 min_calendar_days=1,
                 min_stocks=1,
             )
 
             self.assertFalse(result["ok"])
             failed_names = {item["name"] for item in result["missing_or_failed"]}
+            self.assertIn("technical.input_readiness", failed_names)
             self.assertIn("technical.dataset_ready", failed_names)
             self.assertIn("phase3.model_artifact_output", failed_names)
             self.assertIn("model.success_gate", failed_names)

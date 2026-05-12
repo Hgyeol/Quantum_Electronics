@@ -12,6 +12,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ml.verification import verify_labeled_dataset
+from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
@@ -47,6 +48,16 @@ def _dataset_check(dataset_path: Path, min_calendar_days: int, min_stocks: int) 
         verification.ok,
         f"Verified {dataset_path}",
         verification.to_dict(),
+    )
+
+
+def _input_readiness_check(features_path: Path, prices_path: Path) -> dict[str, Any]:
+    result = check_signal_learning_inputs(features_path, prices_path)
+    return _check(
+        "technical.input_readiness",
+        bool(result.get("ok")),
+        f"Checked features={features_path}, prices={prices_path}",
+        result,
     )
 
 
@@ -102,10 +113,13 @@ def _service_contract_check(model_path: Path) -> dict[str, Any]:
 def audit_signal_learning_prd(
     dataset_path: Path,
     workflow_dir: Path,
+    features_path: Path = Path("data/features.csv"),
+    prices_path: Path = Path("data/prices.csv"),
     min_calendar_days: int = 90,
     min_stocks: int = 5,
 ) -> dict[str, Any]:
     checks = [
+        _input_readiness_check(features_path, prices_path),
         _dataset_check(dataset_path, min_calendar_days, min_stocks),
         *_workflow_output_checks(workflow_dir),
         _model_success_check(workflow_dir / "outlook_logistic_v1.metrics.json"),
@@ -132,6 +146,8 @@ def main() -> int:
         default="ml/artifacts/signal_learning_v1",
         help="Workflow output directory from scripts/run_signal_learning_workflow.py",
     )
+    parser.add_argument("--features", default="data/features.csv", help="Raw feature CSV")
+    parser.add_argument("--prices", default="data/prices.csv", help="Raw price CSV")
     parser.add_argument("--min-calendar-days", type=int, default=90)
     parser.add_argument("--min-stocks", type=int, default=5)
     args = parser.parse_args()
@@ -139,6 +155,8 @@ def main() -> int:
     result = audit_signal_learning_prd(
         dataset_path=Path(args.dataset),
         workflow_dir=Path(args.workflow_dir),
+        features_path=Path(args.features),
+        prices_path=Path(args.prices),
         min_calendar_days=args.min_calendar_days,
         min_stocks=args.min_stocks,
     )
