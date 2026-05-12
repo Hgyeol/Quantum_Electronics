@@ -219,6 +219,8 @@ class MLPipelineTests(unittest.TestCase):
 
         probabilities = loaded.predict_proba(dataset)
 
+        self.assertEqual(loaded.model_name, "logistic_regression_v1")
+        self.assertEqual(loaded.features_version, "v1")
         self.assertEqual(len(probabilities), len(dataset))
         self.assertTrue(((probabilities >= 0) & (probabilities <= 1)).all())
 

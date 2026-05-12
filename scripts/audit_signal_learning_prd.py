@@ -109,13 +109,20 @@ def _service_contract_check(model_path: Path) -> dict[str, Any]:
     model = _load_json(model_path)
     if model is None:
         return _check("service.model_version_traceable", False, f"Model artifact not found: {model_path}")
-    ok = model.get("model_type") == "logistic_regression" and bool(model.get("feature_columns"))
+    ok = (
+        model.get("model_type") == "logistic_regression"
+        and bool(model.get("model_name"))
+        and bool(model.get("features_version"))
+        and bool(model.get("feature_columns"))
+    )
     return _check(
         "service.model_version_traceable",
         ok,
         f"Read {model_path}",
         {
             "model_type": model.get("model_type"),
+            "model_name": model.get("model_name"),
+            "features_version": model.get("features_version"),
             "feature_count": len(model.get("feature_columns", [])),
         },
     )

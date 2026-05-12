@@ -19,6 +19,8 @@ class LogisticRegressionModel:
     stds: dict[str, float]
     weights: dict[str, float]
     bias: float
+    model_name: str = "logistic_regression_v1"
+    features_version: str = "v1"
 
     def _standardize(self, features: pd.DataFrame) -> pd.DataFrame:
         standardized = features.copy()
@@ -42,6 +44,8 @@ class LogisticRegressionModel:
     def to_dict(self) -> dict:
         return {
             "model_type": "logistic_regression",
+            "model_name": self.model_name,
+            "features_version": self.features_version,
             "feature_columns": self.feature_columns,
             "means": self.means,
             "stds": self.stds,
@@ -57,6 +61,8 @@ class LogisticRegressionModel:
             stds={key: float(value) for key, value in payload["stds"].items()},
             weights={key: float(value) for key, value in payload["weights"].items()},
             bias=float(payload["bias"]),
+            model_name=payload.get("model_name", "logistic_regression_v1"),
+            features_version=payload.get("features_version", "v1"),
         )
 
     def save(self, path: str | Path) -> None:
@@ -75,6 +81,8 @@ def train_logistic_regression(
     learning_rate: float = 0.1,
     epochs: int = 500,
     l2: float = 0.001,
+    model_name: str = "logistic_regression_v1",
+    features_version: str = "v1",
 ) -> LogisticRegressionModel:
     if "target_up" not in dataset.columns:
         raise ValueError("dataset must include target_up")
@@ -116,4 +124,6 @@ def train_logistic_regression(
         stds=stds,
         weights=weights,
         bias=bias,
+        model_name=model_name,
+        features_version=features_version,
     )
