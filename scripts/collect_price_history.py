@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "strategy"))
 
 
 def read_codes(codes: list[str], codes_file: str | None = None) -> list[str]:
@@ -77,12 +78,15 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=120, help="Number of daily bars to request per stock")
     parser.add_argument("--env-dv", default="real", choices=["real", "demo"], help="KIS env_dv")
     parser.add_argument("--kis-auth", action="store_true", help="Authenticate KIS before collection")
+    parser.add_argument("--force-kis-token", action="store_true", help="Delete cached KIS token before auth")
     parser.add_argument("--kis-server", default="prod", choices=["prod", "vps"], help="KIS server for --kis-auth")
     args = parser.parse_args()
 
     if args.kis_auth:
         import kis_auth
 
+        if args.force_kis_token:
+            Path(kis_auth.get_token_path()).unlink(missing_ok=True)
         kis_auth.auth(svr=args.kis_server)
 
     codes = read_codes(args.codes, args.codes_file)

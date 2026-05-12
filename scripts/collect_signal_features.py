@@ -101,7 +101,17 @@ def main() -> int:
     )
     parser.add_argument("--reports-jsonl", required=True, help="Append-only OutlookReport JSONL path")
     parser.add_argument("--features-csv", required=True, help="Deduplicated feature CSV path")
+    parser.add_argument("--kis-auth", action="store_true", help="Authenticate KIS before feature collection")
+    parser.add_argument("--force-kis-token", action="store_true", help="Delete cached KIS token before auth")
+    parser.add_argument("--kis-server", default="prod", choices=["prod", "vps"], help="KIS server for --kis-auth")
     args = parser.parse_args()
+
+    if args.kis_auth:
+        import kis_auth
+
+        if args.force_kis_token:
+            Path(kis_auth.get_token_path()).unlink(missing_ok=True)
+        kis_auth.auth(svr=args.kis_server)
 
     codes = _read_codes(args)
     if not codes:

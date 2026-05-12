@@ -22,12 +22,15 @@ python scripts/export_stock_universe.py \
 
 python scripts/collect_signal_features.py \
   --codes-file data/stock_codes.csv \
+  --kis-auth \
   --reports-jsonl data/outlook_reports.jsonl \
   --features-csv data/features.csv
 ```
 
 `export_stock_universe.py` reads the root `kospi.csv` by default and writes
 `stock_code,stock_name,market` rows for collectors.
+If the cached KIS token is stale, add `--force-kis-token` with `--kis-auth` to
+delete the cached token file before authentication.
 
 `reports-jsonl` is append-only. `features-csv` is deduplicated by
 `date,stock_code`, so rerunning the same date overwrites that day's feature row.
@@ -72,6 +75,8 @@ python scripts/collect_price_history.py \
   --days 120 \
   --output data/prices.csv
 ```
+
+Use `--force-kis-token` here as well when KIS needs a fresh token.
 
 Then build next-day labels:
 
