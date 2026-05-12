@@ -51,6 +51,8 @@ delete the cached token file before authentication.
 
 `reports-jsonl` is append-only. `features-csv` is deduplicated by
 `date,stock_code`, so rerunning the same date overwrites that day's feature row.
+The daily collector uses `skip_existing_reports` internally so rerunning it on
+the same date does not duplicate raw report JSONL rows.
 The collector uses current live data, so it rejects non-today `--as-of-date`
 unless `--allow-date-override` is explicitly set for controlled replays of
 already time-correct reports.

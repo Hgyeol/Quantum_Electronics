@@ -61,6 +61,7 @@ def run_daily_signal_learning_collection(
         reports_jsonl=reports_jsonl,
         features_csv=features_csv,
         service=outlook_service,
+        skip_existing_reports=True,
     )
     readiness = check_signal_learning_inputs(
         features_csv,

@@ -47,6 +47,24 @@ def _append_jsonl(path: Path, records: list[dict]) -> None:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def _existing_report_keys(path: Path) -> set[tuple[str, str]]:
+    if not path.exists():
+        return set()
+    keys: set[tuple[str, str]] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            payload = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        as_of_date = str(payload.get("as_of_date") or "")
+        stock_code = str(payload.get("stock_code") or "").strip()
+        if as_of_date and stock_code:
+            keys.add((as_of_date, stock_code))
+    return keys
+
+
 def _merge_feature_csv(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     new_rows = pd.DataFrame(rows)
@@ -67,6 +85,7 @@ def collect_signal_features(
     features_csv: str | Path,
     service: OutlookService | None = None,
     allow_date_override: bool = False,
+    skip_existing_reports: bool = False,
 ) -> dict[str, int]:
     if as_of_date != date.today() and not allow_date_override:
         raise ValueError(
@@ -77,11 +96,13 @@ def collect_signal_features(
     outlook_service = service or OutlookService()
     report_records = []
     feature_rows = []
+    existing_report_keys = _existing_report_keys(Path(reports_jsonl)) if skip_existing_reports else set()
     for code in codes:
         report = outlook_service.build_report(code)
         payload = report.model_dump(mode="json")
         payload["as_of_date"] = as_of_date.isoformat()
-        report_records.append(payload)
+        if (payload["as_of_date"], report.stock_code) not in existing_report_keys:
+            report_records.append(payload)
         feature_rows.append(feature_row_from_report(report, as_of_date=as_of_date))
 
     _append_jsonl(Path(reports_jsonl), report_records)
@@ -101,6 +122,7 @@ def main() -> int:
     )
     parser.add_argument("--reports-jsonl", required=True, help="Append-only OutlookReport JSONL path")
     parser.add_argument("--features-csv", required=True, help="Deduplicated feature CSV path")
+    parser.add_argument("--skip-existing-reports", action="store_true", help="Avoid duplicate JSONL report rows")
     parser.add_argument("--kis-auth", action="store_true", help="Authenticate KIS before feature collection")
     parser.add_argument("--force-kis-token", action="store_true", help="Delete cached KIS token before auth")
     parser.add_argument("--kis-server", default="prod", choices=["prod", "vps"], help="KIS server for --kis-auth")
@@ -122,6 +144,7 @@ def main() -> int:
         reports_jsonl=args.reports_jsonl,
         features_csv=args.features_csv,
         allow_date_override=args.allow_date_override,
+        skip_existing_reports=args.skip_existing_reports,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

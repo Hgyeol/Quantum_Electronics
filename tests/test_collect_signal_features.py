@@ -65,6 +65,35 @@ class CollectSignalFeaturesTests(unittest.TestCase):
             self.assertEqual(set(features["stock_code"]), {"005930", "000660"})
             self.assertEqual(set(features["date"]), {"2026-05-12"})
 
+    def test_collect_signal_features_can_skip_existing_report_rows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reports_path = Path(tmpdir) / "reports.jsonl"
+            features_path = Path(tmpdir) / "features.csv"
+
+            collect_signal_features(
+                codes=["005930"],
+                as_of_date=pd.Timestamp("2026-05-12").date(),
+                reports_jsonl=reports_path,
+                features_csv=features_path,
+                service=FakeOutlookService(),
+                allow_date_override=True,
+                skip_existing_reports=True,
+            )
+            result = collect_signal_features(
+                codes=["005930"],
+                as_of_date=pd.Timestamp("2026-05-12").date(),
+                reports_jsonl=reports_path,
+                features_csv=features_path,
+                service=FakeOutlookService(),
+                allow_date_override=True,
+                skip_existing_reports=True,
+            )
+
+            reports = [json.loads(line) for line in reports_path.read_text(encoding="utf-8").splitlines()]
+
+            self.assertEqual(result, {"reports": 0, "features": 1})
+            self.assertEqual(len(reports), 1)
+
     def test_collect_signal_features_rejects_backdated_live_snapshot(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             yesterday = date.today() - timedelta(days=1)
