@@ -2,7 +2,30 @@
 
 This workflow implements the first practical steps from `PRD_신호학습_백테스트.md`.
 
-## 1. Build Feature CSV
+## 1. Collect Daily Features
+
+Run this once per trading day for the stocks you want to track:
+
+```bash
+python scripts/collect_signal_features.py 005930 000660 \
+  --as-of-date 2026-05-12 \
+  --reports-jsonl data/outlook_reports.jsonl \
+  --features-csv data/features.csv
+```
+
+You can also pass a stock-code file:
+
+```bash
+python scripts/collect_signal_features.py \
+  --codes-file data/stock_codes.csv \
+  --reports-jsonl data/outlook_reports.jsonl \
+  --features-csv data/features.csv
+```
+
+`reports-jsonl` is append-only. `features-csv` is deduplicated by
+`date,stock_code`, so rerunning the same date overwrites that day's feature row.
+
+## 2. Build Feature CSV From Existing Reports
 
 If you already have saved `OutlookReport` JSONL records:
 
@@ -14,7 +37,7 @@ python scripts/build_signal_features.py \
 
 Each JSONL line should be one `OutlookReport` object. You may include an `as_of_date` field to force the feature row date.
 
-## 2. Build Labeled Dataset
+## 3. Build Labeled Dataset
 
 Prepare a price CSV with:
 
@@ -37,7 +60,7 @@ The output adds:
 close,next_close,next_day_return,target_up
 ```
 
-## 3. Evaluate Baselines
+## 4. Evaluate Baselines
 
 Before evaluation, verify that the dataset is large enough for the PRD gate:
 
@@ -68,7 +91,7 @@ This evaluates:
 
 Metrics include accuracy, precision, recall, ROC-AUC, win rate, trade count, turnover, mean selected return, cumulative return, and max drawdown.
 
-## 4. Train Logistic Regression
+## 5. Train Logistic Regression
 
 ```bash
 python scripts/train_outlook_model.py \
@@ -78,7 +101,7 @@ python scripts/train_outlook_model.py \
 
 The script uses chronological train/validation/test splits and prints baseline-vs-model metrics.
 
-## 5. Use Model in FastAPI
+## 6. Use Model in FastAPI
 
 Set:
 
@@ -96,7 +119,7 @@ python -m uvicorn web.main:app --host 127.0.0.1 --port 8000
 
 `GET /outlook/stock/{code}` will include `ml_prediction` when the model can be loaded.
 
-## 6. Cache LLM Signals
+## 7. Cache LLM Signals
 
 Historical feature generation can call the same evidence repeatedly. Enable a
 file-backed LLM cache to avoid repeated provider calls for identical evidence:
