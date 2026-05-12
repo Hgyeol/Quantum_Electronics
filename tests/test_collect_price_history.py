@@ -11,7 +11,7 @@ class CollectPriceHistoryTests(unittest.TestCase):
     def test_read_codes_dedupes_args_and_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "codes.csv"
-            path.write_text("005930\n000660,SK하이닉스\n", encoding="utf-8")
+            path.write_text("stock_code,stock_name,market\n005930,삼성전자,KOSPI\n000660,SK하이닉스,KOSPI\n", encoding="utf-8")
 
             codes = read_codes(["005930"], str(path))
 

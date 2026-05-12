@@ -28,7 +28,9 @@ def _read_codes(args) -> list[str]:
         for raw_line in Path(args.codes_file).read_text(encoding="utf-8").splitlines():
             line = raw_line.strip()
             if line and not line.startswith("#"):
-                codes.append(line.split(",")[0].strip())
+                code = line.split(",")[0].strip()
+                if code.lower() != "stock_code":
+                    codes.append(code)
     deduped = []
     seen = set()
     for code in codes:

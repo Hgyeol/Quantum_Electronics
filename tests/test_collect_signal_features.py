@@ -9,6 +9,7 @@ import pandas as pd
 from analysis.models import OutlookReport
 from analysis.scoring import combine_signals
 from scripts.collect_signal_features import collect_signal_features
+from scripts.collect_signal_features import _read_codes
 
 
 class FakeOutlookService:
@@ -21,6 +22,18 @@ class FakeOutlookService:
 
 
 class CollectSignalFeaturesTests(unittest.TestCase):
+    def test_read_codes_skips_stock_code_csv_header(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "stock_codes.csv"
+            path.write_text(
+                "stock_code,stock_name,market\n005930,삼성전자,KOSPI\n000660,SK하이닉스,KOSPI\n",
+                encoding="utf-8",
+            )
+
+            args = type("Args", (), {"codes": ["005930"], "codes_file": str(path)})
+
+            self.assertEqual(_read_codes(args), ["005930", "000660"])
+
     def test_collect_signal_features_appends_reports_and_dedupes_features(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             reports_path = Path(tmpdir) / "reports.jsonl"
