@@ -60,6 +60,28 @@ class BuildSignalFeaturesTests(unittest.TestCase):
             self.assertEqual(rows[0]["date"], "2026-05-11")
             self.assertEqual(rows[0]["news_count"], 1)
 
+    def test_iter_report_feature_rows_filters_stock_codes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reports_path = Path(tmpdir) / "reports.jsonl"
+            reports = []
+            for stock_code, stock_name in [("005930", "삼성전자"), ("000660", "SK하이닉스")]:
+                report = OutlookReport(
+                    stock_code=stock_code,
+                    stock_name=stock_name,
+                    score=combine_signals(),
+                ).model_dump(mode="json")
+                report["as_of_date"] = "2026-05-11"
+                reports.append(report)
+            reports_path.write_text(
+                "\n".join(json.dumps(item, ensure_ascii=False) for item in reports),
+                encoding="utf-8",
+            )
+
+            rows = list(iter_report_feature_rows(reports_path, stock_codes={"005930"}))
+
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["stock_code"], "005930")
+
     def test_iter_report_feature_rows_carries_after_market_close_to_next_row(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             reports_path = Path(tmpdir) / "reports.jsonl"

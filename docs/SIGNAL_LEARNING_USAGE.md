@@ -67,10 +67,13 @@ python scripts/build_signal_features.py \
   --reports data/outlook_reports.jsonl \
   --output data/features.csv \
   --start-date 2026-02-01 \
-  --end-date 2026-05-12
+  --end-date 2026-05-12 \
+  --stock-code 005930 \
+  --stock-code 000660
 ```
 
 Each JSONL line should be one `OutlookReport` object. You may include an `as_of_date` field to force the feature row date.
+Use `--stock-code` one or more times when replaying a specific stock universe.
 By default, evidence with `published_at` after that row's cutoff is withheld
 from the current row. Same-day evidence after the default `15:30` Asia/Seoul
 market close cutoff is carried to the next available row for the same stock

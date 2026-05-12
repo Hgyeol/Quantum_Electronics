@@ -160,6 +160,7 @@ def iter_report_feature_rows(
     path: Path,
     start_date: date | None = None,
     end_date: date | None = None,
+    stock_codes: set[str] | None = None,
     drop_future_evidence: bool = True,
     cutoff_time: str | None = "15:30",
     cutoff_timezone: str = "Asia/Seoul",
@@ -168,6 +169,8 @@ def iter_report_feature_rows(
     pending_ai_by_stock: dict[str, list] = {}
     pending_financial_by_stock: dict[str, list] = {}
     for row_date, _, report in _load_report_records(path):
+        if stock_codes and report.stock_code not in stock_codes:
+            continue
         if drop_future_evidence:
             cutoff = _cutoff_datetime(row_date, cutoff_time, cutoff_timezone)
             available_pending, still_pending = _split_evidence_by_cutoff(
@@ -199,6 +202,12 @@ def main() -> int:
     parser.add_argument("--start-date", help="Optional inclusive start date in YYYY-MM-DD")
     parser.add_argument("--end-date", help="Optional inclusive end date in YYYY-MM-DD")
     parser.add_argument(
+        "--stock-code",
+        action="append",
+        dest="stock_codes",
+        help="Optional stock code to include. Repeat to include multiple stocks.",
+    )
+    parser.add_argument(
         "--keep-future-evidence",
         action="store_true",
         help="Do not drop evidence published after the row as_of_date",
@@ -217,6 +226,7 @@ def main() -> int:
             Path(args.reports),
             start_date=_parse_date(args.start_date),
             end_date=_parse_date(args.end_date),
+            stock_codes=set(args.stock_codes or []),
             drop_future_evidence=not args.keep_future_evidence,
             cutoff_time=None if args.keep_after_market_close else args.market_close_time,
             cutoff_timezone=args.market_timezone,
