@@ -39,6 +39,22 @@ close,next_close,next_day_return,target_up
 
 ## 3. Evaluate Baselines
 
+Before evaluation, verify that the dataset is large enough for the PRD gate:
+
+```bash
+python scripts/verify_ml_dataset.py --dataset data/ml_dataset.csv
+```
+
+By default this requires at least 90 calendar days and 5 stocks. For smoke tests,
+you can lower the thresholds:
+
+```bash
+python scripts/verify_ml_dataset.py \
+  --dataset data/ml_dataset.csv \
+  --min-calendar-days 1 \
+  --min-stocks 1
+```
+
 ```bash
 python scripts/evaluate_ml_dataset.py --dataset data/ml_dataset.csv
 ```
