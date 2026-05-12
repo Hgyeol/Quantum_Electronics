@@ -60,7 +60,7 @@ class BuildSignalFeaturesTests(unittest.TestCase):
             self.assertEqual(rows[0]["date"], "2026-05-11")
             self.assertEqual(rows[0]["news_count"], 1)
 
-    def test_iter_report_feature_rows_filters_same_day_after_market_close(self):
+    def test_iter_report_feature_rows_carries_after_market_close_to_next_row(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             reports_path = Path(tmpdir) / "reports.jsonl"
             report = OutlookReport(
@@ -85,11 +85,21 @@ class BuildSignalFeaturesTests(unittest.TestCase):
                 ],
             ).model_dump(mode="json")
             report["as_of_date"] = "2026-05-11"
-            reports_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+            next_report = OutlookReport(
+                stock_code="005930",
+                stock_name="삼성전자",
+                score=combine_signals(),
+            ).model_dump(mode="json")
+            next_report["as_of_date"] = "2026-05-12"
+            reports_path.write_text(
+                "\n".join(json.dumps(item, ensure_ascii=False) for item in [report, next_report]),
+                encoding="utf-8",
+            )
 
             rows = list(iter_report_feature_rows(reports_path))
 
             self.assertEqual(rows[0]["news_count"], 1)
+            self.assertEqual(rows[1]["news_count"], 1)
 
 
 if __name__ == "__main__":

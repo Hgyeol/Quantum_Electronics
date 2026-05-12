@@ -71,11 +71,11 @@ python scripts/build_signal_features.py \
 ```
 
 Each JSONL line should be one `OutlookReport` object. You may include an `as_of_date` field to force the feature row date.
-By default, evidence with `published_at` after that row's `as_of_date` is
-excluded before feature counts are computed. Same-day evidence after the
-default `15:30` Asia/Seoul market close cutoff is also excluded unless
-`--keep-after-market-close` is set. This keeps replayed report archives from
-leaking future or after-close news/disclosures into earlier rows.
+By default, evidence with `published_at` after that row's cutoff is withheld
+from the current row. Same-day evidence after the default `15:30` Asia/Seoul
+market close cutoff is carried to the next available row for the same stock
+unless `--keep-after-market-close` is set. This keeps replayed report archives
+from leaking future or after-close news/disclosures into earlier rows.
 
 ## 3. Build Labeled Dataset
 

@@ -21,6 +21,21 @@ from analysis.models import OutlookReport
 from ml.features import feature_row_from_report
 
 
+def _load_report_records(path: Path) -> list[tuple[date, int, OutlookReport]]:
+    records = []
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        payload = json.loads(line)
+        as_of_date = payload.pop("as_of_date", None)
+        metadata = payload.pop("metadata", {}) or {}
+        report = OutlookReport.model_validate(payload)
+        row_date = _as_of_date(as_of_date, metadata, report)
+        records.append((row_date, line_number, report))
+    return sorted(records, key=lambda item: (item[2].stock_code, item[0], item[1]))
+
+
 def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
@@ -40,24 +55,40 @@ def _cutoff_datetime(value: date, cutoff_time: str | None, cutoff_timezone: str)
     return local_cutoff.astimezone(timezone.utc)
 
 
-def _remove_future_evidence(
-    report: OutlookReport,
-    as_of_date: date,
-    cutoff_time: str | None = "15:30",
-    cutoff_timezone: str = "Asia/Seoul",
-) -> OutlookReport:
-    cutoff = _cutoff_datetime(as_of_date, cutoff_time, cutoff_timezone)
-    evidence = []
-    for item in report.evidence:
+def _published_at_utc(item) -> datetime | None:
+    if item.published_at is None:
+        return None
+    published_at = item.published_at
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=timezone.utc)
+    return published_at.astimezone(timezone.utc)
+
+
+def _split_evidence_by_cutoff(evidence, cutoff: datetime):
+    available = []
+    pending = []
+    for item in evidence:
         if item.published_at is None:
-            evidence.append(item)
+            available.append(item)
             continue
-        published_at = item.published_at
-        if published_at.tzinfo is None:
-            published_at = published_at.replace(tzinfo=timezone.utc)
+        published_at = _published_at_utc(item)
         if published_at <= cutoff:
-            evidence.append(item)
-    return report.model_copy(update={"evidence": evidence})
+            available.append(item)
+        else:
+            pending.append(item)
+    return available, pending
+
+
+def _dedupe_evidence(evidence):
+    seen = set()
+    unique = []
+    for item in evidence:
+        key = item.evidence_id or (item.kind, item.source, item.title, item.published_at)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+    return unique
 
 
 def iter_report_feature_rows(
@@ -68,21 +99,21 @@ def iter_report_feature_rows(
     cutoff_time: str | None = "15:30",
     cutoff_timezone: str = "Asia/Seoul",
 ):
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        line = raw_line.strip()
-        if not line:
-            continue
-        payload = json.loads(line)
-        as_of_date = payload.pop("as_of_date", None)
-        metadata = payload.pop("metadata", {}) or {}
-        report = OutlookReport.model_validate(payload)
-        row_date = _as_of_date(as_of_date, metadata, report)
+    pending_by_stock: dict[str, list] = {}
+    for row_date, _, report in _load_report_records(path):
+        if drop_future_evidence:
+            cutoff = _cutoff_datetime(row_date, cutoff_time, cutoff_timezone)
+            available_pending, still_pending = _split_evidence_by_cutoff(
+                pending_by_stock.get(report.stock_code, []),
+                cutoff,
+            )
+            available_current, pending_current = _split_evidence_by_cutoff(report.evidence, cutoff)
+            report = report.model_copy(update={"evidence": _dedupe_evidence(available_pending + available_current)})
+            pending_by_stock[report.stock_code] = _dedupe_evidence(still_pending + pending_current)
         if start_date and row_date < start_date:
             continue
         if end_date and row_date > end_date:
             continue
-        if drop_future_evidence:
-            report = _remove_future_evidence(report, row_date, cutoff_time, cutoff_timezone)
         yield feature_row_from_report(report, as_of_date=row_date)
 
 
