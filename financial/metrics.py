@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -70,6 +71,21 @@ def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator in (None, 0):
         return None
     return round((numerator / denominator) * 100, 2)
+
+
+def _latest_receipt_datetime(statements: pd.DataFrame) -> datetime | None:
+    if statements.empty or "rcept_no" not in statements:
+        return None
+    dates = []
+    for value in statements["rcept_no"].dropna():
+        text = str(value)
+        if len(text) < 8 or not text[:8].isdigit():
+            continue
+        try:
+            dates.append(datetime.strptime(text[:8], "%Y%m%d").replace(tzinfo=timezone.utc))
+        except ValueError:
+            continue
+    return max(dates) if dates else None
 
 
 def calculate_financial_metrics(statements: pd.DataFrame) -> dict[str, float | None]:
@@ -180,6 +196,7 @@ def analyze_financials(statements: pd.DataFrame) -> FinancialMetricResult:
             kind="financial",
             source="DART",
             title="DART single-account financial statements",
+            published_at=_latest_receipt_datetime(statements),
             metadata={"rows": int(len(statements))},
         )
     ]

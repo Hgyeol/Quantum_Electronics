@@ -1,5 +1,6 @@
 import os
 import unittest
+from datetime import timezone
 from unittest.mock import patch
 
 import pandas as pd
@@ -22,7 +23,12 @@ class FinancialAnalysisTests(unittest.TestCase):
                 {"bsns_year": "2025", "account_nm": "영업이익", "thstrm_amount": "180"},
                 {"bsns_year": "2025", "account_nm": "당기순이익", "thstrm_amount": "120"},
                 {"bsns_year": "2025", "account_nm": "부채총계", "thstrm_amount": "500"},
-                {"bsns_year": "2025", "account_nm": "자본총계", "thstrm_amount": "1,000"},
+                {
+                    "bsns_year": "2025",
+                    "account_nm": "자본총계",
+                    "thstrm_amount": "1,000",
+                    "rcept_no": "20260401001234",
+                },
             ]
         )
 
@@ -44,7 +50,12 @@ class FinancialAnalysisTests(unittest.TestCase):
                 {"bsns_year": "2025", "account_nm": "영업이익", "thstrm_amount": "180"},
                 {"bsns_year": "2025", "account_nm": "당기순이익", "thstrm_amount": "120"},
                 {"bsns_year": "2025", "account_nm": "부채총계", "thstrm_amount": "500"},
-                {"bsns_year": "2025", "account_nm": "자본총계", "thstrm_amount": "1,000"},
+                {
+                    "bsns_year": "2025",
+                    "account_nm": "자본총계",
+                    "thstrm_amount": "1,000",
+                    "rcept_no": "20260401001234",
+                },
             ]
         )
 
@@ -56,6 +67,8 @@ class FinancialAnalysisTests(unittest.TestCase):
         self.assertEqual(directions["debt_ratio"], "positive")
         self.assertEqual(directions["roe"], "positive")
         self.assertEqual(result.evidence[0].evidence_id, "financial-statements")
+        self.assertEqual(result.evidence[0].published_at.date().isoformat(), "2026-04-01")
+        self.assertEqual(result.evidence[0].published_at.tzinfo, timezone.utc)
 
     def test_missing_dart_key_returns_error_result(self):
         with patch.dict(os.environ, {"DART_API_KEY": "", "DISCLOSURE_CRTFC_KEY": ""}, clear=False):

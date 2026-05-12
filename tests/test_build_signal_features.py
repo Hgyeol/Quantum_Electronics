@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from analysis.models import Evidence, OutlookReport
+from analysis.models import AISignal, Evidence, FinancialSignal, OutlookReport
 from analysis.scoring import combine_signals
 from scripts.build_signal_features import iter_report_feature_rows
 
@@ -66,7 +66,46 @@ class BuildSignalFeaturesTests(unittest.TestCase):
             report = OutlookReport(
                 stock_code="005930",
                 stock_name="삼성전자",
-                score=combine_signals(),
+                score=combine_signals(
+                    ai_signals=[
+                        AISignal(
+                            direction="positive",
+                            score=2,
+                            label="after close news",
+                            summary="장마감 이후 호재",
+                            evidence_ids=["news-2"],
+                            confidence=0.8,
+                        )
+                    ],
+                    financial_signals=[
+                        FinancialSignal(
+                            direction="negative",
+                            score=-1,
+                            label="after close financial",
+                            metric="revenue_growth",
+                            evidence_ids=["fin-1"],
+                        )
+                    ],
+                ),
+                ai_signals=[
+                    AISignal(
+                        direction="positive",
+                        score=2,
+                        label="after close news",
+                        summary="장마감 이후 호재",
+                        evidence_ids=["news-2"],
+                        confidence=0.8,
+                    )
+                ],
+                financial_signals=[
+                    FinancialSignal(
+                        direction="negative",
+                        score=-1,
+                        label="after close financial",
+                        metric="revenue_growth",
+                        evidence_ids=["fin-1"],
+                    )
+                ],
                 evidence=[
                     Evidence(
                         evidence_id="news-1",
@@ -80,6 +119,13 @@ class BuildSignalFeaturesTests(unittest.TestCase):
                         kind="news",
                         source="mock",
                         title="after close",
+                        published_at=datetime(2026, 5, 11, 6, 31, tzinfo=timezone.utc),
+                    ),
+                    Evidence(
+                        evidence_id="fin-1",
+                        kind="financial",
+                        source="mock",
+                        title="after close financial",
                         published_at=datetime(2026, 5, 11, 6, 31, tzinfo=timezone.utc),
                     ),
                 ],
@@ -99,7 +145,15 @@ class BuildSignalFeaturesTests(unittest.TestCase):
             rows = list(iter_report_feature_rows(reports_path))
 
             self.assertEqual(rows[0]["news_count"], 1)
+            self.assertEqual(rows[0]["financial_evidence_count"], 0)
+            self.assertEqual(rows[0]["ai_score"], 0)
+            self.assertEqual(rows[0]["financial_score"], 0)
+            self.assertEqual(rows[0]["total_rule_score"], 0)
             self.assertEqual(rows[1]["news_count"], 1)
+            self.assertEqual(rows[1]["financial_evidence_count"], 1)
+            self.assertEqual(rows[1]["ai_score"], 2)
+            self.assertEqual(rows[1]["financial_score"], -1)
+            self.assertEqual(rows[1]["total_rule_score"], 1)
 
 
 if __name__ == "__main__":

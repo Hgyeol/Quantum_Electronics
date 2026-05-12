@@ -75,7 +75,10 @@ By default, evidence with `published_at` after that row's cutoff is withheld
 from the current row. Same-day evidence after the default `15:30` Asia/Seoul
 market close cutoff is carried to the next available row for the same stock
 unless `--keep-after-market-close` is set. This keeps replayed report archives
-from leaking future or after-close news/disclosures into earlier rows.
+from leaking future or after-close news/disclosures into earlier rows. LLM and
+financial signals whose `evidence_ids` are not available at the row cutoff are
+withheld with their evidence, and the rule score is recalculated from the
+remaining signals.
 
 ## 3. Build Labeled Dataset
 

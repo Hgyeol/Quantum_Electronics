@@ -18,6 +18,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from analysis.models import OutlookReport
+from analysis.scoring import combine_signals
 from ml.features import feature_row_from_report
 
 
@@ -91,6 +92,70 @@ def _dedupe_evidence(evidence):
     return unique
 
 
+def _signal_is_available(signal, available_evidence_ids: set[str]) -> bool:
+    evidence_ids = set(getattr(signal, "evidence_ids", []) or [])
+    return not evidence_ids or evidence_ids.issubset(available_evidence_ids)
+
+
+def _dedupe_signals(signals):
+    seen = set()
+    unique = []
+    for signal in signals:
+        key = (
+            signal.__class__.__name__,
+            getattr(signal, "label", None),
+            getattr(signal, "metric", None),
+            getattr(signal, "score", None),
+            tuple(getattr(signal, "evidence_ids", []) or []),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(signal)
+    return unique
+
+
+def _split_signals_by_evidence(signals, available_evidence_ids: set[str]):
+    available = []
+    pending = []
+    for signal in signals:
+        if _signal_is_available(signal, available_evidence_ids):
+            available.append(signal)
+        else:
+            pending.append(signal)
+    return available, pending
+
+
+def _sanitize_report_for_replay(
+    report: OutlookReport,
+    evidence,
+    pending_ai_signals,
+    pending_financial_signals,
+) -> tuple[OutlookReport, list, list]:
+    available_evidence_ids = {item.evidence_id for item in evidence}
+    available_ai, still_pending_ai = _split_signals_by_evidence(
+        _dedupe_signals(pending_ai_signals + report.ai_signals),
+        available_evidence_ids,
+    )
+    available_financial, still_pending_financial = _split_signals_by_evidence(
+        _dedupe_signals(pending_financial_signals + report.financial_signals),
+        available_evidence_ids,
+    )
+    sanitized = report.model_copy(
+        update={
+            "evidence": evidence,
+            "ai_signals": available_ai,
+            "financial_signals": available_financial,
+            "score": combine_signals(
+                quant_signals=report.quant_signals,
+                ai_signals=available_ai,
+                financial_signals=available_financial,
+            ),
+        }
+    )
+    return sanitized, still_pending_ai, still_pending_financial
+
+
 def iter_report_feature_rows(
     path: Path,
     start_date: date | None = None,
@@ -100,6 +165,8 @@ def iter_report_feature_rows(
     cutoff_timezone: str = "Asia/Seoul",
 ):
     pending_by_stock: dict[str, list] = {}
+    pending_ai_by_stock: dict[str, list] = {}
+    pending_financial_by_stock: dict[str, list] = {}
     for row_date, _, report in _load_report_records(path):
         if drop_future_evidence:
             cutoff = _cutoff_datetime(row_date, cutoff_time, cutoff_timezone)
@@ -108,8 +175,16 @@ def iter_report_feature_rows(
                 cutoff,
             )
             available_current, pending_current = _split_evidence_by_cutoff(report.evidence, cutoff)
-            report = report.model_copy(update={"evidence": _dedupe_evidence(available_pending + available_current)})
+            evidence = _dedupe_evidence(available_pending + available_current)
+            report, still_pending_ai, still_pending_financial = _sanitize_report_for_replay(
+                report,
+                evidence,
+                pending_ai_by_stock.get(report.stock_code, []),
+                pending_financial_by_stock.get(report.stock_code, []),
+            )
             pending_by_stock[report.stock_code] = _dedupe_evidence(still_pending + pending_current)
+            pending_ai_by_stock[report.stock_code] = still_pending_ai
+            pending_financial_by_stock[report.stock_code] = still_pending_financial
         if start_date and row_date < start_date:
             continue
         if end_date and row_date > end_date:
