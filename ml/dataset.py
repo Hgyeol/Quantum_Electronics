@@ -40,7 +40,12 @@ def read_csv(path: str | Path) -> pd.DataFrame:
 
 def _normalize_dates(df: pd.DataFrame) -> pd.DataFrame:
     normalized = df.copy()
-    normalized["date"] = pd.to_datetime(normalized["date"]).dt.date
+    raw_dates = normalized["date"].astype(str).str.strip()
+    compact_dates = raw_dates.str.fullmatch(r"\d{8}")
+    parsed = pd.to_datetime(raw_dates, errors="coerce")
+    if compact_dates.any():
+        parsed.loc[compact_dates] = pd.to_datetime(raw_dates.loc[compact_dates], format="%Y%m%d", errors="coerce")
+    normalized["date"] = parsed.dt.date
     return normalized
 
 

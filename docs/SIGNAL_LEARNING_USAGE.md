@@ -93,6 +93,10 @@ Use `--force-kis-token` here as well when KIS needs a fresh token.
 Then build next-day labels:
 
 ```bash
+python scripts/check_signal_learning_inputs.py \
+  --features data/features.csv \
+  --prices data/prices.csv
+
 python scripts/build_ml_dataset.py \
   --features data/features.csv \
   --prices data/prices.csv \
