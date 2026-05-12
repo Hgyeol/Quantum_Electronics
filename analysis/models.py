@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
+from ml.prediction import MLPrediction
 from quant.models import QuantSignal
 
 Direction = Literal["positive", "negative", "neutral"]
@@ -100,6 +101,7 @@ class OutlookReport(BaseModel):
     ai_signals: list[AISignal] = Field(default_factory=list)
     financial_signals: list[FinancialSignal] = Field(default_factory=list)
     financial_interpretation: FinancialInterpretation | None = None
+    ml_prediction: MLPrediction | None = None
     evidence: list[Evidence] = Field(default_factory=list)
     errors: list[AnalysisError] = Field(default_factory=list)
 

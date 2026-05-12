@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 from analysis.models import AISignal, Evidence, FinancialSignal, OutlookReport
 from analysis.scoring import combine_signals, direction_from_score
+from ml.prediction import MLPrediction
 from quant.models import QuantSignal
 
 
@@ -96,6 +97,20 @@ class DomainModelTests(unittest.TestCase):
         self.assertEqual(report.stock_code, "005930")
         self.assertEqual(report.score.direction, "neutral")
         self.assertTrue(report.errors[0].recoverable)
+
+    def test_outlook_report_accepts_ml_prediction(self):
+        report = OutlookReport(
+            stock_code="005930",
+            score=combine_signals(),
+            ml_prediction=MLPrediction(
+                probability=0.57,
+                model="logistic_regression_v1",
+                features_version="v1",
+            ),
+        )
+
+        self.assertEqual(report.ml_prediction.target, "next_day_up")
+        self.assertEqual(report.ml_prediction.probability, 0.57)
 
 
 if __name__ == "__main__":

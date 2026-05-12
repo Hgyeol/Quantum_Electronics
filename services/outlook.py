@@ -12,7 +12,9 @@ from analysis.scoring import combine_signals
 from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosures
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
+from llm.cache import CachedLLMAnalyzer
 from llm.analyzer import DisabledLLMAnalyzer, OpenAIResponsesAnalyzer
+from ml.runtime import OutlookMLPredictor, load_predictor_from_env
 from news.kis_news_title import fetch_kis_news_titles
 from news.naver_news_api import build_stock_news_query, search_naver_news, search_naver_news_by_titles
 from quant.engine import QuantEngine
@@ -24,13 +26,20 @@ _KOSPI_CSV = _PROJECT_ROOT / "disclosure" / "kospi.csv"
 
 
 class OutlookService:
-    def __init__(self, quant_engine: QuantEngine | None = None):
+    def __init__(
+        self,
+        quant_engine: QuantEngine | None = None,
+        ml_predictor: OutlookMLPredictor | None = None,
+    ):
         self.quant_engine = quant_engine or QuantEngine()
+        self.ml_predictor = ml_predictor or load_predictor_from_env()
         self.llm_analyzer = (
             OpenAIResponsesAnalyzer()
             if os.getenv("OPENAI_API_KEY")
             else DisabledLLMAnalyzer()
         )
+        if os.getenv("OUTLOOK_LLM_CACHE_PATH"):
+            self.llm_analyzer = CachedLLMAnalyzer(self.llm_analyzer, os.environ["OUTLOOK_LLM_CACHE_PATH"])
 
     def build_report(self, stock_code: str, stock_name: str | None = None) -> OutlookReport:
         stock = lookup_stock_master(stock_code)
@@ -50,7 +59,7 @@ class OutlookService:
                 )
             )
             score = combine_signals()
-            return OutlookReport(
+            report = OutlookReport(
                 stock_code=normalized_code,
                 stock_name=stock_name,
                 summary=f"{display_name} outlook is unavailable because the stock is not in the KOSPI master.",
@@ -61,6 +70,7 @@ class OutlookService:
                 evidence=[],
                 errors=errors,
             )
+            return self._attach_ml_prediction(report, errors)
 
         quant_signals = self._get_quant_signals(normalized_code, display_name, errors)
         evidence = []
@@ -127,7 +137,7 @@ class OutlookService:
             financial_signals=financial_signals,
         )
 
-        return OutlookReport(
+        report = OutlookReport(
             stock_code=normalized_code,
             stock_name=stock_name,
             summary=f"{display_name} outlook is {score.direction} with total score {score.total_score}.",
@@ -138,6 +148,7 @@ class OutlookService:
             evidence=evidence,
             errors=errors,
         )
+        return self._attach_ml_prediction(report, errors)
 
     def _get_quant_signals(
         self,
@@ -152,6 +163,22 @@ class OutlookService:
                 AnalysisError(source="quant", code="failed", message=f"Quant analysis failed: {exc}")
             )
             return []
+
+    def _attach_ml_prediction(
+        self,
+        report: OutlookReport,
+        errors: list[AnalysisError],
+    ) -> OutlookReport:
+        if not self.ml_predictor:
+            return report
+        try:
+            prediction = self.ml_predictor.predict_report(report)
+        except Exception as exc:
+            errors.append(
+                AnalysisError(source="ml_prediction", code="failed", message=f"ML prediction failed: {exc}")
+            )
+            return report.model_copy(update={"errors": errors})
+        return report.model_copy(update={"ml_prediction": prediction, "errors": errors})
 
 
 def _read_csv_rows(csv_path: Path, encodings: tuple[str, ...] = ("utf-8-sig", "cp949", "euc-kr")):
