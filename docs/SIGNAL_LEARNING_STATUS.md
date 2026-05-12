@@ -22,9 +22,13 @@ Current local inputs:
 - Labelable feature rows: 0
 - PRD remaining calendar days: 89
 - PRD remaining stocks: 0
+- PRD target calendar end date: `2026-08-09`
 
 The current blocker is not code execution. The blocker is data availability:
 the collected `2026-05-12` feature rows do not yet have a next trading-day price.
+Because the default PRD gate requires 90 calendar days of features, the final
+model artifact and validation/test success gates cannot be produced from the
+current local inputs yet.
 
 ## Requirement Checklist
 
@@ -34,6 +38,10 @@ the collected `2026-05-12` feature rows do not yet have a next trading-day price
 | Price CSV input | Implemented | `scripts/collect_price_history.py` |
 | Next-day labels | Implemented | `ml/dataset.py`, `scripts/build_ml_dataset.py` |
 | Duplicate `(date, stock_code)` rejection | Implemented | `ml/dataset.py`, tests |
+| Future evidence exclusion | Implemented | `scripts/build_signal_features.py`, tests |
+| After-close evidence carried forward | Implemented | `scripts/build_signal_features.py`, tests |
+| Replay signal leakage guard | Implemented | unavailable LLM/financial signals are withheld and score is recalculated |
+| Financial statement disclosure date | Implemented | DART `rcept_no` date becomes financial evidence `published_at` |
 | Baseline evaluation | Implemented | `ml/evaluation.py`, `scripts/evaluate_ml_dataset.py` |
 | Logistic Regression training | Implemented | `ml/training.py`, `scripts/train_outlook_model.py` |
 | Time-ordered split | Implemented | date-level `split_by_time` in `ml/evaluation.py` |
@@ -43,6 +51,7 @@ the collected `2026-05-12` feature rows do not yet have a next trading-day price
 | Model explanation | Implemented | `ml_prediction.explanation`, `top_contributions` |
 | Daily data collection | Implemented | `scripts/collect_daily_signal_learning_inputs.py` |
 | Workflow runner | Implemented | `scripts/run_signal_learning_workflow.py` |
+| Workflow readiness gates configurable | Implemented | `min_calendar_days`, `min_stocks` are passed into input readiness |
 | PRD audit | Implemented | `scripts/audit_signal_learning_prd.py` |
 | 3 months actual feature dataset | Not complete | current feature calendar days: 1 |
 | 5+ stocks actual dataset | Data input met | current feature stock count: 5 |
