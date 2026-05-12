@@ -59,7 +59,7 @@ class CollectDailySignalLearningInputsTests(unittest.TestCase):
                 reports_jsonl=tmp / "reports.jsonl",
                 features_csv=tmp / "features.csv",
                 price_days=2,
-                as_of_date=date(2026, 5, 12),
+                as_of_date=date.today(),
                 price_fetcher=fake_price_fetcher,
                 outlook_service=FakeOutlookService(),
             )
@@ -101,7 +101,7 @@ class CollectDailySignalLearningInputsTests(unittest.TestCase):
                 prices_csv=tmp / "prices.csv",
                 reports_jsonl=tmp / "reports.jsonl",
                 features_csv=tmp / "features.csv",
-                as_of_date=date(2026, 5, 12),
+                as_of_date=date.today(),
                 price_fetcher=fake_price_fetcher,
                 outlook_service=FakeOutlookService(),
                 run_workflow_if_ready=True,

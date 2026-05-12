@@ -57,6 +57,9 @@ class CheckSignalLearningInputsTests(unittest.TestCase):
             self.assertEqual(result["prd_progress"]["feature_calendar_days"], 1)
             self.assertEqual(result["prd_progress"]["remaining_calendar_days"], 89)
             self.assertEqual(result["prd_progress"]["target_calendar_end_date"], "2026-08-07")
+            self.assertFalse(result["readiness"]["has_labelable_rows"])
+            self.assertFalse(result["readiness"]["has_min_calendar_days"])
+            self.assertFalse(result["readiness"]["has_min_stocks"])
             self.assertEqual(result["labeling"]["labelable_feature_rows"], 0)
             self.assertEqual(result["labeling"]["missing_next_price_count"], 1)
 
@@ -79,6 +82,9 @@ class CheckSignalLearningInputsTests(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertEqual(result["prd_progress"]["remaining_calendar_days"], 0)
             self.assertEqual(result["prd_progress"]["remaining_stocks"], 0)
+            self.assertTrue(result["readiness"]["has_labelable_rows"])
+            self.assertTrue(result["readiness"]["has_min_calendar_days"])
+            self.assertTrue(result["readiness"]["has_min_stocks"])
             self.assertEqual(result["labeling"]["labelable_feature_rows"], 1)
             self.assertEqual(result["labeling"]["labeled_dataset_rows"], 1)
 
@@ -99,7 +105,9 @@ class CheckSignalLearningInputsTests(unittest.TestCase):
             result = check_signal_learning_inputs(features, prices)
 
             self.assertEqual(result["prices"]["start_date"], "2026-05-10")
-            self.assertTrue(result["ok"])
+            self.assertFalse(result["ok"])
+            self.assertTrue(result["readiness"]["has_labelable_rows"])
+            self.assertFalse(result["readiness"]["has_min_calendar_days"])
 
 
 if __name__ == "__main__":

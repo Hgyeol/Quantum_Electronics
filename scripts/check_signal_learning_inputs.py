@@ -61,8 +61,11 @@ def check_signal_learning_inputs(
         else None
     )
     feature_stock_count = int(features["stock_code"].nunique()) if "stock_code" in features else 0
+    has_min_calendar_days = feature_calendar_days >= min_calendar_days
+    has_min_stocks = feature_stock_count >= min_stocks
+    has_labelable_rows = labelable_rows > 0
     return {
-        "ok": labelable_rows > 0,
+        "ok": has_labelable_rows and has_min_calendar_days and has_min_stocks,
         "prd_progress": {
             "min_calendar_days": min_calendar_days,
             "feature_calendar_days": feature_calendar_days,
@@ -71,6 +74,11 @@ def check_signal_learning_inputs(
             "min_stocks": min_stocks,
             "feature_stock_count": feature_stock_count,
             "remaining_stocks": max(min_stocks - feature_stock_count, 0),
+        },
+        "readiness": {
+            "has_labelable_rows": has_labelable_rows,
+            "has_min_calendar_days": has_min_calendar_days,
+            "has_min_stocks": has_min_stocks,
         },
         "features": {
             "rows": int(len(features)),
