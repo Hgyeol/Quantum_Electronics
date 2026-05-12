@@ -16,11 +16,18 @@ python scripts/collect_signal_features.py 005930 000660 \
 You can also pass a stock-code file:
 
 ```bash
+python scripts/export_stock_universe.py \
+  --output data/stock_codes.csv \
+  --limit 5
+
 python scripts/collect_signal_features.py \
   --codes-file data/stock_codes.csv \
   --reports-jsonl data/outlook_reports.jsonl \
   --features-csv data/features.csv
 ```
+
+`export_stock_universe.py` reads the root `kospi.csv` by default and writes
+`stock_code,stock_name,market` rows for collectors.
 
 `reports-jsonl` is append-only. `features-csv` is deduplicated by
 `date,stock_code`, so rerunning the same date overwrites that day's feature row.
