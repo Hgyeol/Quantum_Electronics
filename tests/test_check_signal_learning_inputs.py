@@ -56,6 +56,7 @@ class CheckSignalLearningInputsTests(unittest.TestCase):
             self.assertFalse(result["ok"])
             self.assertEqual(result["prd_progress"]["feature_calendar_days"], 1)
             self.assertEqual(result["prd_progress"]["remaining_calendar_days"], 89)
+            self.assertEqual(result["prd_progress"]["target_calendar_end_date"], "2026-08-07")
             self.assertEqual(result["labeling"]["labelable_feature_rows"], 0)
             self.assertEqual(result["labeling"]["missing_next_price_count"], 1)
 

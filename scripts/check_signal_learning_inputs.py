@@ -55,6 +55,11 @@ def check_signal_learning_inputs(
     feature_calendar_days = (
         int((feature_dates.max() - feature_dates.min()).days) + 1 if not feature_dates.empty else 0
     )
+    target_calendar_end_date = (
+        (feature_dates.min() + pd.Timedelta(days=min_calendar_days - 1)).date().isoformat()
+        if not feature_dates.empty and min_calendar_days > 0
+        else None
+    )
     feature_stock_count = int(features["stock_code"].nunique()) if "stock_code" in features else 0
     return {
         "ok": labelable_rows > 0,
@@ -62,6 +67,7 @@ def check_signal_learning_inputs(
             "min_calendar_days": min_calendar_days,
             "feature_calendar_days": feature_calendar_days,
             "remaining_calendar_days": max(min_calendar_days - feature_calendar_days, 0),
+            "target_calendar_end_date": target_calendar_end_date,
             "min_stocks": min_stocks,
             "feature_stock_count": feature_stock_count,
             "remaining_stocks": max(min_stocks - feature_stock_count, 0),
