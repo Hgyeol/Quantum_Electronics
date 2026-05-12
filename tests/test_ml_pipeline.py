@@ -7,7 +7,7 @@ import pandas as pd
 from analysis.models import AISignal, Evidence, FinancialSignal, OutlookReport
 from analysis.scoring import combine_signals
 from ml.dataset import attach_next_day_labels, build_labeled_dataset, prepare_model_features
-from ml.evaluation import evaluate_baselines, split_by_time
+from ml.evaluation import evaluate_baselines, split_by_time, success_gate
 from ml.features import feature_row_from_report
 from ml.runtime import OutlookMLPredictor
 from ml.training import load_logistic_regression, train_logistic_regression
@@ -127,6 +127,24 @@ class MLPipelineTests(unittest.TestCase):
         self.assertIn("total_rule_score_gt_0", baselines)
         self.assertIn("mean_return_when_pred_up", baselines["always_up"])
         self.assertIn("roc_auc", baselines["always_up"])
+
+    def test_success_gate_requires_baseline_improvement_and_trades(self):
+        baseline_metrics = {
+            "total_rule_score_gt_0": {
+                "precision": 0.5,
+                "mean_return_when_pred_up": 0.01,
+            }
+        }
+        model_metrics = {
+            "precision": 0.5,
+            "mean_return_when_pred_up": 0.02,
+            "trade_count": 3,
+        }
+
+        result = success_gate(model_metrics, baseline_metrics)
+
+        self.assertTrue(result["passes"])
+        self.assertTrue(result["improves_mean_return"])
 
     def test_train_logistic_regression_saves_and_loads_model(self):
         dataset = pd.DataFrame(

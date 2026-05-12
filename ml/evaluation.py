@@ -134,3 +134,39 @@ def evaluate_baselines(dataset: pd.DataFrame) -> dict[str, dict[str, float | int
         "quant_score_gt_0": evaluate_predictions(evaluated, "baseline_quant_score"),
         "ai_score_gt_0": evaluate_predictions(evaluated, "baseline_ai_score"),
     }
+
+
+def success_gate(
+    model_metrics: dict[str, float | int],
+    baseline_metrics: dict[str, dict[str, float | int]],
+    baseline_name: str = "total_rule_score_gt_0",
+) -> dict[str, bool | float | int | str]:
+    """Check PRD model success against a baseline.
+
+    The PRD considers a model useful if validation/test improves either
+    precision or mean selected return while still making at least one trade.
+    """
+    baseline = baseline_metrics.get(baseline_name)
+    if baseline is None:
+        raise ValueError(f"baseline not found: {baseline_name}")
+
+    model_precision = float(model_metrics.get("precision", 0.0))
+    baseline_precision = float(baseline.get("precision", 0.0))
+    model_return = float(model_metrics.get("mean_return_when_pred_up", 0.0))
+    baseline_return = float(baseline.get("mean_return_when_pred_up", 0.0))
+    trade_count = int(model_metrics.get("trade_count", 0))
+    improves_precision = model_precision > baseline_precision
+    improves_mean_return = model_return > baseline_return
+    passes = trade_count > 0 and (improves_precision or improves_mean_return)
+
+    return {
+        "passes": passes,
+        "baseline": baseline_name,
+        "model_precision": model_precision,
+        "baseline_precision": baseline_precision,
+        "model_mean_return": model_return,
+        "baseline_mean_return": baseline_return,
+        "trade_count": trade_count,
+        "improves_precision": improves_precision,
+        "improves_mean_return": improves_mean_return,
+    }

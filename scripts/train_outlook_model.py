@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ml.evaluation import evaluate_baselines, evaluate_predictions, split_by_time
+from ml.evaluation import evaluate_baselines, evaluate_predictions, split_by_time, success_gate
 from ml.training import train_logistic_regression
 
 
@@ -18,6 +18,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Train an outlook prediction model")
     parser.add_argument("--dataset", required=True, help="CSV produced by scripts/build_ml_dataset.py")
     parser.add_argument("--output", required=True, help="Model artifact JSON path")
+    parser.add_argument("--metrics-output", help="Optional JSON path for training/evaluation metrics")
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--learning-rate", type=float, default=0.1)
     args = parser.parse_args()
@@ -33,6 +34,10 @@ def main() -> int:
     validation_scored["ml_predicted_up"] = model.predict(validation_scored)
     test_scored["ml_probability_up"] = model.predict_proba(test_scored)
     test_scored["ml_predicted_up"] = model.predict(test_scored)
+    validation_baselines = evaluate_baselines(validation)
+    test_baselines = evaluate_baselines(test)
+    validation_model_metrics = evaluate_predictions(validation_scored, "ml_predicted_up", "ml_probability_up")
+    test_model_metrics = evaluate_predictions(test_scored, "ml_predicted_up", "ml_probability_up")
     output = {
         "model": args.output,
         "rows": {
@@ -41,17 +46,24 @@ def main() -> int:
             "test": len(test),
         },
         "validation": {
-            "baselines": evaluate_baselines(validation),
-            "model": evaluate_predictions(validation_scored, "ml_predicted_up", "ml_probability_up"),
+            "baselines": validation_baselines,
+            "model": validation_model_metrics,
+            "success_gate": success_gate(validation_model_metrics, validation_baselines),
         },
         "test": {
-            "baselines": evaluate_baselines(test),
-            "model": evaluate_predictions(test_scored, "ml_predicted_up", "ml_probability_up"),
+            "baselines": test_baselines,
+            "model": test_model_metrics,
+            "success_gate": success_gate(test_model_metrics, test_baselines),
         },
         "coefficients": model.weights,
         "bias": model.bias,
     }
-    print(json.dumps(output, ensure_ascii=False, indent=2))
+    rendered = json.dumps(output, ensure_ascii=False, indent=2)
+    if args.metrics_output:
+        metrics_path = Path(args.metrics_output)
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        metrics_path.write_text(rendered, encoding="utf-8")
+    print(rendered)
     return 0
 
 
