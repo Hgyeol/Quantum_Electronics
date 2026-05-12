@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 from scripts.collect_price_history import collect_price_history, read_codes
 from scripts.collect_signal_features import collect_signal_features
 from scripts.export_stock_universe import export_stock_universe
@@ -56,6 +57,7 @@ def run_daily_signal_learning_collection(
         features_csv=features_csv,
         service=outlook_service,
     )
+    readiness = check_signal_learning_inputs(features_csv, prices_csv)
     return {
         "stock_universe": {
             "path": str(stock_codes_csv),
@@ -70,6 +72,7 @@ def run_daily_signal_learning_collection(
             "features_csv": str(features_csv),
             **feature_result,
         },
+        "readiness": readiness,
     }
 
 

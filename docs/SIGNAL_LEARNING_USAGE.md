@@ -14,7 +14,9 @@ python scripts/collect_daily_signal_learning_inputs.py \
 
 This exports `data/stock_codes.csv` from the root `kospi.csv`, refreshes
 `data/prices.csv`, and appends today's reports/features to
-`data/outlook_reports.jsonl` and `data/features.csv`.
+`data/outlook_reports.jsonl` and `data/features.csv`. The command also prints a
+`readiness` summary showing whether the collected features already have a next
+trading-day price available for label generation.
 
 Run this once per trading day for the stocks you want to track:
 
