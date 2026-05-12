@@ -22,6 +22,11 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _remove_stale_outputs(paths: list[Path]) -> None:
+    for path in paths:
+        path.unlink(missing_ok=True)
+
+
 def evaluate_dataset(dataset: pd.DataFrame) -> dict:
     train, validation, test = split_by_time(dataset)
     return {
@@ -70,6 +75,15 @@ def run_signal_learning_workflow(
     }
     if not input_readiness.get("ok"):
         summary["stopped_at"] = "input_readiness"
+        _remove_stale_outputs(
+            [
+                dataset_path,
+                verification_path,
+                baseline_metrics_path,
+                model_path,
+                model_metrics_path,
+            ]
+        )
         _write_json(summary_path, summary)
         return summary
 

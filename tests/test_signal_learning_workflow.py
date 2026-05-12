@@ -119,6 +119,15 @@ class SignalLearningWorkflowTests(unittest.TestCase):
             pd.DataFrame(
                 [{"date": "2026-05-12", "stock_code": "005930", "close": 100}]
             ).to_csv(prices_path, index=False)
+            output_dir.mkdir()
+            for stale_name in [
+                "ml_dataset.csv",
+                "verification.json",
+                "baseline_metrics.json",
+                "outlook_logistic_v1.json",
+                "outlook_logistic_v1.metrics.json",
+            ]:
+                (output_dir / stale_name).write_text("stale", encoding="utf-8")
 
             summary = run_signal_learning_workflow(
                 features_csv=features_path,
@@ -128,6 +137,10 @@ class SignalLearningWorkflowTests(unittest.TestCase):
 
             self.assertEqual(summary["stopped_at"], "input_readiness")
             self.assertFalse((output_dir / "ml_dataset.csv").exists())
+            self.assertFalse((output_dir / "verification.json").exists())
+            self.assertFalse((output_dir / "baseline_metrics.json").exists())
+            self.assertFalse((output_dir / "outlook_logistic_v1.json").exists())
+            self.assertFalse((output_dir / "outlook_logistic_v1.metrics.json").exists())
             self.assertTrue((output_dir / "workflow_summary.json").exists())
 
 
