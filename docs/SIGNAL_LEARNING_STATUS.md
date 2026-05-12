@@ -55,7 +55,8 @@ Run once per trading day:
 ```bash
 python scripts/collect_daily_signal_learning_inputs.py \
   --kis-auth \
-  --stock-limit 5
+  --stock-limit 5 \
+  --run-workflow-if-ready
 ```
 
 If KIS requires a fresh token:
@@ -64,7 +65,8 @@ If KIS requires a fresh token:
 python scripts/collect_daily_signal_learning_inputs.py \
   --kis-auth \
   --force-kis-token \
-  --stock-limit 5
+  --stock-limit 5 \
+  --run-workflow-if-ready
 ```
 
 Then check readiness:

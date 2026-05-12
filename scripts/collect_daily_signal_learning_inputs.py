@@ -13,6 +13,7 @@ from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 from scripts.collect_price_history import collect_price_history, read_codes
 from scripts.collect_signal_features import collect_signal_features
 from scripts.export_stock_universe import export_stock_universe
+from scripts.run_signal_learning_workflow import run_signal_learning_workflow
 
 
 def _authenticate_kis(force_token: bool, kis_server: str) -> None:
@@ -37,6 +38,8 @@ def run_daily_signal_learning_collection(
     kis_auth_enabled: bool = False,
     force_kis_token: bool = False,
     kis_server: str = "prod",
+    run_workflow_if_ready: bool = False,
+    workflow_output_dir: str | Path = "ml/artifacts/signal_learning_v1",
     price_fetcher=None,
     outlook_service=None,
 ) -> dict:
@@ -65,7 +68,7 @@ def run_daily_signal_learning_collection(
         min_calendar_days=min_calendar_days,
         min_stocks=min_stocks,
     )
-    return {
+    result = {
         "stock_universe": {
             "path": str(stock_codes_csv),
             "count": stock_count,
@@ -81,6 +84,22 @@ def run_daily_signal_learning_collection(
         },
         "readiness": readiness,
     }
+    if run_workflow_if_ready:
+        if readiness.get("ok"):
+            result["workflow"] = run_signal_learning_workflow(
+                features_csv=features_csv,
+                prices_csv=prices_csv,
+                output_dir=workflow_output_dir,
+                min_calendar_days=min_calendar_days,
+                min_stocks=min_stocks,
+            )
+        else:
+            result["workflow"] = {
+                "ok": False,
+                "stopped_at": "input_readiness",
+                "reason": "readiness.ok is false",
+            }
+    return result
 
 
 def main() -> int:
@@ -98,6 +117,8 @@ def main() -> int:
     parser.add_argument("--kis-auth", action="store_true")
     parser.add_argument("--force-kis-token", action="store_true")
     parser.add_argument("--kis-server", default="prod", choices=["prod", "vps"])
+    parser.add_argument("--run-workflow-if-ready", action="store_true")
+    parser.add_argument("--workflow-output-dir", default="ml/artifacts/signal_learning_v1")
     args = parser.parse_args()
 
     result = run_daily_signal_learning_collection(
@@ -114,6 +135,8 @@ def main() -> int:
         kis_auth_enabled=args.kis_auth,
         force_kis_token=args.force_kis_token,
         kis_server=args.kis_server,
+        run_workflow_if_ready=args.run_workflow_if_ready,
+        workflow_output_dir=args.workflow_output_dir,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
