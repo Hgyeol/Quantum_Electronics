@@ -112,11 +112,11 @@ class LLMAnalysisTests(unittest.TestCase):
         self.assertIn("반드시 한국어로만 답한다", prompt)
         self.assertIn("투자 전망 판단의 우선순위", prompt)
         self.assertIn("노조, 성과급, 일반 정치 발언", prompt)
-        self.assertIn("직접 영향이 명시된 경우에만 score에 반영", prompt)
-        self.assertIn("비용 추정치가 있어도 단독으로 direction 또는 score를 바꾸지 않는다", prompt)
-        self.assertIn("회사 공시, 실적 발표, 가이던스, 실제 생산 차질", prompt)
-        self.assertIn("반대 근거가 낮은 우선순위 이슈뿐이면 neutral로 낮추지 말고 positive를 유지", prompt)
-        self.assertIn("방향성이 단정되기 어렵다는 결론의 주된 이유로 쓰지 않는다", prompt)
+        self.assertIn("직접 영향이 명시된 경우에 score에 반영", prompt)
+        self.assertIn("구체적 비용 추정", prompt)
+        self.assertIn("해당 이슈로 인한 주가 급락이나 매도세", prompt)
+        self.assertIn("반대 근거가 직접 영향 없는 낮은 우선순위 이슈뿐이면 neutral로 낮추지 말고 positive를 유지", prompt)
+        self.assertIn("비용, 생산, 실적, 주가 반응 중 하나와 직접 연결될 때만", prompt)
         self.assertIn("summary는 2문장 이내로 작성한다. 첫 문장은 반드시", prompt)
         self.assertIn("마지막에 1회만 짧게 언급", prompt)
         self.assertIn("score는 반드시 -2, -1, 0, 1, 2", prompt)
@@ -165,6 +165,49 @@ class LLMAnalysisTests(unittest.TestCase):
 
         self.assertEqual(result.errors, [])
         self.assertEqual(result.signals[0].direction, "positive")
+
+    def test_material_labor_news_with_cost_or_stock_reaction_reaches_llm_analysis(self):
+        evidence = [
+            Evidence(
+                evidence_id="news-1",
+                kind="news",
+                source="Naver News",
+                title="삼성전자 노조 리스크에 주가 급락",
+                content="JP모건은 성과급 요구 수용 시 추가 인건비 부담이 커질 수 있다고 분석했고 주가 급락이 나타났다.",
+            ),
+            Evidence(
+                evidence_id="news-2",
+                kind="news",
+                source="Naver News",
+                title="삼성 노사 성과급 재협상 난항",
+                content="노조가 성과급 제도화를 요구했다.",
+            ),
+        ]
+
+        filtered = filter_llm_evidence(evidence)
+
+        self.assertEqual([item.evidence_id for item in filtered], ["news-1"])
+
+        def completion(prompt):
+            self.assertIn("evidence_id: news-1", prompt)
+            self.assertIn("JP모건", prompt)
+            self.assertIn("주가 급락", prompt)
+            self.assertNotIn("evidence_id: news-2", prompt)
+            return json.dumps(
+                {
+                    "label": "삼성전자",
+                    "direction": "negative",
+                    "score": -1,
+                    "summary": "노조 관련 추가 인건비 부담과 주가 급락이 확인돼 비용/심리 리스크가 커졌다.",
+                    "evidence_ids": ["news-1"],
+                    "confidence": 0.62,
+                }
+            )
+
+        result = StructuredLLMAnalyzer(completion).analyze_evidence(evidence)
+
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.signals[0].direction, "negative")
 
     def test_openai_responses_adapter_parses_output_text(self):
         session = MockOpenAISession()
