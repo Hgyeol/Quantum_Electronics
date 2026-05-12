@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from analysis.models import OutlookReport
 from analysis.scoring import combine_signals
+from ml.prediction import MLFeatureContribution, MLPrediction
 from quant.models import QuantSignal
 from services.outlook import OutlookService, lookup_dart_stock_mapping, lookup_stock_master
 from web.main import app, get_outlook_service
@@ -66,6 +67,54 @@ class FastAPIServiceTests(unittest.TestCase):
         response = self.client.get("/outlook/market")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_stock_outlook_serializes_ml_prediction(self):
+        class FakePredictor:
+            def predict_report(self, report):
+                return MLPrediction(
+                    probability=0.57,
+                    model="logistic_regression_v1",
+                    features_version="v1",
+                    rule_score=report.score.total_score,
+                    rule_direction=report.score.direction,
+                    explanation="mock explanation",
+                    top_contributions=[
+                        MLFeatureContribution(
+                            feature="quant_score",
+                            value=1.0,
+                            contribution=0.2,
+                            direction="positive",
+                        )
+                    ],
+                )
+
+        class QuietQuantEngine:
+            def get_signals(self, stock_code, stock_name):
+                return [
+                    QuantSignal(
+                        label="mock momentum",
+                        direction="positive",
+                        score=1,
+                        value=1.0,
+                        api_used="mock",
+                    )
+                ]
+
+        app.dependency_overrides[get_outlook_service] = lambda: OutlookService(
+            quant_engine=QuietQuantEngine(),
+            ml_predictor=FakePredictor(),
+        )
+
+        response = self.client.get("/outlook/stock/005930")
+
+        self.assertEqual(response.status_code, 200)
+        prediction = response.json()["ml_prediction"]
+        self.assertEqual(prediction["target"], "next_day_up")
+        self.assertEqual(prediction["probability"], 0.57)
+        self.assertEqual(prediction["model"], "logistic_regression_v1")
+        self.assertEqual(prediction["features_version"], "v1")
+        self.assertEqual(prediction["rule_score"], 1)
+        self.assertEqual(prediction["top_contributions"][0]["feature"], "quant_score")
 
     def test_lookup_dart_stock_mapping_by_exact_name(self):
         stock = lookup_dart_stock_mapping("삼성전자")
