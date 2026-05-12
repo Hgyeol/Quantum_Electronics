@@ -39,10 +39,23 @@ Each JSONL line should be one `OutlookReport` object. You may include an `as_of_
 
 ## 3. Build Labeled Dataset
 
-Prepare a price CSV with:
+Collect a price CSV with:
 
-```text
-date,stock_code,close
+```bash
+python scripts/collect_price_history.py 005930 000660 \
+  --kis-auth \
+  --days 120 \
+  --output data/prices.csv
+```
+
+Or collect for a stock-code file:
+
+```bash
+python scripts/collect_price_history.py \
+  --codes-file data/stock_codes.csv \
+  --kis-auth \
+  --days 120 \
+  --output data/prices.csv
 ```
 
 Then build next-day labels:
