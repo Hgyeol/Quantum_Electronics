@@ -125,7 +125,31 @@ while still making enough trades across more than one selected stock. It also
 prints `coefficient_importance`, sorted by absolute logistic-regression
 coefficient, so you can inspect which signals influenced the first model most.
 
-## 6. Use Model in FastAPI
+## 6. Run The Whole Dataset Workflow
+
+Once `features.csv` and `prices.csv` exist, you can run the build, PRD
+verification, baseline evaluation, and model training steps together:
+
+```bash
+python scripts/run_signal_learning_workflow.py \
+  --features data/features.csv \
+  --prices data/prices.csv \
+  --output-dir ml/artifacts/signal_learning_v1
+```
+
+The workflow writes:
+
+- `ml_dataset.csv`
+- `verification.json`
+- `baseline_metrics.json`
+- `outlook_logistic_v1.json`
+- `outlook_logistic_v1.metrics.json`
+- `workflow_summary.json`
+
+It exits non-zero if the dataset fails the default PRD readiness gate of 90
+calendar days and 5 stocks.
+
+## 7. Use Model in FastAPI
 
 Set:
 
@@ -143,7 +167,7 @@ python -m uvicorn web.main:app --host 127.0.0.1 --port 8000
 
 `GET /outlook/stock/{code}` will include `ml_prediction` when the model can be loaded.
 
-## 7. Cache LLM Signals
+## 8. Cache LLM Signals
 
 Historical feature generation can call the same evidence repeatedly. Enable a
 file-backed LLM cache to avoid repeated provider calls for identical evidence:
