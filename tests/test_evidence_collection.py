@@ -275,7 +275,7 @@ class EvidenceCollectionTests(unittest.TestCase):
     def test_disclosure_zip_document_is_extracted_to_text(self):
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
-            archive.writestr("document.xml", "<DOCUMENT><BODY>공시 원문 내용</BODY></DOCUMENT>")
+            archive.writestr("document.xml", "<DOCUMENT><BODY>공시\n원문\\n내용\t확인</BODY></DOCUMENT>")
 
         result = download_disclosure_text(
             "20260501000123",
@@ -284,7 +284,17 @@ class EvidenceCollectionTests(unittest.TestCase):
         )
 
         self.assertEqual(result.error, None)
-        self.assertIn("공시 원문 내용", result.text)
+        self.assertEqual(result.text, "공시 원문 내용 확인")
+
+    def test_disclosure_plain_document_text_is_cleaned(self):
+        result = download_disclosure_text(
+            "20260501000123",
+            api_key="dart-key",
+            session=MockSession(MockResponse(text="<DOCUMENT>공시\r\n본문\\n내용</DOCUMENT>")),
+        )
+
+        self.assertEqual(result.error, None)
+        self.assertEqual(result.text, "공시 본문 내용")
 
     def test_enrich_disclosure_texts_attaches_content(self):
         buffer = BytesIO()
@@ -309,6 +319,7 @@ class EvidenceCollectionTests(unittest.TestCase):
 
         self.assertEqual(result.errors, [])
         self.assertIn("추출된 공시 본문", result.evidence[0].content)
+        self.assertNotIn("\n", result.evidence[0].content)
 
 
 if __name__ == "__main__":

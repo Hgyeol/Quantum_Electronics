@@ -18,6 +18,7 @@ from analysis.models import AnalysisError, Evidence
 DART_DISCLOSURE_LIST_URL = "https://opendart.fss.or.kr/api/list.json"
 DART_DOCUMENT_URL = "https://opendart.fss.or.kr/api/document.xml"
 _TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 @dataclass
@@ -49,6 +50,11 @@ def _parse_date(value: str | None) -> datetime | None:
         return datetime.strptime(value, "%Y%m%d")
     except ValueError:
         return None
+
+
+def _clean_disclosure_text(text: str) -> str:
+    text = text.replace("\\r", " ").replace("\\n", " ").replace("\\t", " ")
+    return _WHITESPACE_RE.sub(" ", text).strip()
 
 
 def search_disclosures(
@@ -169,9 +175,9 @@ def download_disclosure_text(
                 texts.append(_TAG_RE.sub(" ", raw))
     except zipfile.BadZipFile:
         text = response.text if hasattr(response, "text") else response.content.decode("utf-8", errors="ignore")
-        return DisclosureDocumentResult(text=_TAG_RE.sub(" ", text).strip() or None)
+        return DisclosureDocumentResult(text=_clean_disclosure_text(_TAG_RE.sub(" ", text)) or None)
 
-    return DisclosureDocumentResult(text="\n".join(texts).strip() or None)
+    return DisclosureDocumentResult(text=_clean_disclosure_text(" ".join(texts)) or None)
 
 
 def enrich_disclosure_texts(
