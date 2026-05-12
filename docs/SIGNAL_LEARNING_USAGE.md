@@ -4,6 +4,18 @@ This workflow implements the first practical steps from `PRD_신호학습_백테
 
 ## 1. Collect Daily Features
 
+The simplest daily collection command is:
+
+```bash
+python scripts/collect_daily_signal_learning_inputs.py \
+  --kis-auth \
+  --stock-limit 5
+```
+
+This exports `data/stock_codes.csv` from the root `kospi.csv`, refreshes
+`data/prices.csv`, and appends today's reports/features to
+`data/outlook_reports.jsonl` and `data/features.csv`.
+
 Run this once per trading day for the stocks you want to track:
 
 ```bash
