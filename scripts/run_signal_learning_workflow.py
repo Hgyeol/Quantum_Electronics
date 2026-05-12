@@ -63,7 +63,12 @@ def run_signal_learning_workflow(
     model_metrics_path = output_root / "outlook_logistic_v1.metrics.json"
     summary_path = output_root / "workflow_summary.json"
 
-    input_readiness = check_signal_learning_inputs(features_csv, prices_csv)
+    input_readiness = check_signal_learning_inputs(
+        features_csv,
+        prices_csv,
+        min_calendar_days=min_calendar_days,
+        min_stocks=min_stocks,
+    )
     summary = {
         "ok": False,
         "input_readiness": input_readiness,

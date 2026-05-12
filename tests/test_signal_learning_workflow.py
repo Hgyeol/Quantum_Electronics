@@ -79,6 +79,8 @@ class SignalLearningWorkflowTests(unittest.TestCase):
             )
 
             self.assertTrue(summary["verification_ok"])
+            self.assertEqual(summary["input_readiness"]["prd_progress"]["min_calendar_days"], 1)
+            self.assertEqual(summary["input_readiness"]["prd_progress"]["remaining_calendar_days"], 0)
             self.assertTrue((output_dir / "ml_dataset.csv").exists())
             self.assertTrue((output_dir / "verification.json").exists())
             self.assertTrue((output_dir / "baseline_metrics.json").exists())
