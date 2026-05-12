@@ -60,6 +60,35 @@ The collector uses current live data, so it rejects non-today `--as-of-date`
 unless `--allow-date-override` is explicitly set for controlled replays of
 already time-correct reports.
 
+### Optional macOS launchd Schedule
+
+On macOS, render a launchd plist for daily collection:
+
+```bash
+python scripts/render_signal_learning_launchd_plist.py \
+  --output runtime/com.quantum-electronics.signal-learning-daily.plist
+```
+
+If the KIS token often expires before the scheduled run, include
+`--force-kis-token`:
+
+```bash
+python scripts/render_signal_learning_launchd_plist.py \
+  --force-kis-token \
+  --output runtime/com.quantum-electronics.signal-learning-daily.plist
+```
+
+Install it with:
+
+```bash
+cp runtime/com.quantum-electronics.signal-learning-daily.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.quantum-electronics.signal-learning-daily.plist
+```
+
+The default schedule is 16:10 local time. Logs are written to
+`runtime/signal_learning_daily.out.log` and
+`runtime/signal_learning_daily.err.log`.
+
 ## 2. Build Feature CSV From Existing Reports
 
 If you already have saved `OutlookReport` JSONL records:
