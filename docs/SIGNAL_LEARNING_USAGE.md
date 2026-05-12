@@ -203,7 +203,9 @@ python scripts/audit_signal_learning_prd.py
 This command is intentionally strict: missing data, failed 90-day/5-stock
 verification, missing model artifacts, or failed validation/test success gates
 make the audit fail. It also checks `data/features.csv` and `data/prices.csv`
-first so missing next-day prices are visible before model training starts.
+first so missing next-day prices are visible before model training starts, and
+verifies that file-backed LLM caching is available through
+`OUTLOOK_LLM_CACHE_PATH`.
 
 ## 7. Use Model in FastAPI
 

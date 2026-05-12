@@ -28,6 +28,8 @@ class SignalLearningPRDAuditTests(unittest.TestCase):
             self.assertIn("technical.dataset_ready", failed_names)
             self.assertIn("phase3.model_artifact_output", failed_names)
             self.assertIn("model.success_gate", failed_names)
+            cache_check = next(item for item in result["checks"] if item["name"] == "technical.llm_cache_available")
+            self.assertTrue(cache_check["ok"])
 
     def test_cli_defaults_match_workflow_output_dir(self):
         output = StringIO()

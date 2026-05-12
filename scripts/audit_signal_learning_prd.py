@@ -120,6 +120,29 @@ def _service_contract_check(model_path: Path) -> dict[str, Any]:
     )
 
 
+def _llm_cache_check() -> dict[str, Any]:
+    cache_path = Path("llm/cache.py")
+    service_path = Path("services/outlook.py")
+    cache_source = cache_path.read_text(encoding="utf-8") if cache_path.exists() else ""
+    service_source = service_path.read_text(encoding="utf-8") if service_path.exists() else ""
+    ok = (
+        "CachedLLMAnalyzer" in cache_source
+        and "cache_key_for_evidence" in cache_source
+        and "OUTLOOK_LLM_CACHE_PATH" in service_source
+        and "CachedLLMAnalyzer" in service_source
+    )
+    return _check(
+        "technical.llm_cache_available",
+        ok,
+        "Checked llm/cache.py and services/outlook.py",
+        {
+            "cache_module": str(cache_path),
+            "service_module": str(service_path),
+            "env_var": "OUTLOOK_LLM_CACHE_PATH",
+        },
+    )
+
+
 def audit_signal_learning_prd(
     dataset_path: Path,
     workflow_dir: Path,
@@ -132,6 +155,7 @@ def audit_signal_learning_prd(
         _input_readiness_check(features_path, prices_path, min_calendar_days, min_stocks),
         _dataset_check(dataset_path, min_calendar_days, min_stocks),
         *_workflow_output_checks(workflow_dir),
+        _llm_cache_check(),
         _model_success_check(workflow_dir / "outlook_logistic_v1.metrics.json"),
         _service_contract_check(workflow_dir / "outlook_logistic_v1.json"),
     ]
