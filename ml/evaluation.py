@@ -22,12 +22,19 @@ def split_by_time(
     ordered = dataset.copy()
     ordered["date"] = pd.to_datetime(ordered["date"])
     ordered = ordered.sort_values(["date", "stock_code"]).reset_index(drop=True)
-    train_end = int(len(ordered) * train_ratio)
-    validation_end = train_end + int(len(ordered) * validation_ratio)
+    unique_dates = pd.Series(ordered["date"].drop_duplicates().sort_values().tolist())
+    train_date_end = int(len(unique_dates) * train_ratio)
+    validation_date_end = train_date_end + int(len(unique_dates) * validation_ratio)
+    if len(unique_dates) >= 3:
+        train_date_end = min(max(train_date_end, 1), len(unique_dates) - 2)
+        validation_date_end = min(max(validation_date_end, train_date_end + 1), len(unique_dates) - 1)
+    train_dates = set(unique_dates.iloc[:train_date_end])
+    validation_dates = set(unique_dates.iloc[train_date_end:validation_date_end])
+    test_dates = set(unique_dates.iloc[validation_date_end:])
     return (
-        ordered.iloc[:train_end].reset_index(drop=True),
-        ordered.iloc[train_end:validation_end].reset_index(drop=True),
-        ordered.iloc[validation_end:].reset_index(drop=True),
+        ordered.loc[ordered["date"].isin(train_dates)].reset_index(drop=True),
+        ordered.loc[ordered["date"].isin(validation_dates)].reset_index(drop=True),
+        ordered.loc[ordered["date"].isin(test_dates)].reset_index(drop=True),
     )
 
 

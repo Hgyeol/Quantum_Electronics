@@ -129,6 +129,32 @@ class MLPipelineTests(unittest.TestCase):
         self.assertIn("roc_auc", baselines["always_up"])
         self.assertIn("selected_stock_count", baselines["always_up"])
 
+    def test_split_by_time_keeps_same_date_in_one_partition(self):
+        dataset = pd.DataFrame(
+            [
+                {
+                    "date": f"2026-05-{day:02d}",
+                    "stock_code": stock_code,
+                    "target_up": day % 2,
+                    "next_day_return": 0.01,
+                    "total_rule_score": 1,
+                    "quant_score": 1,
+                    "ai_score": 0,
+                }
+                for day in range(1, 7)
+                for stock_code in ["005930", "000660"]
+            ]
+        )
+
+        train, validation, test = split_by_time(dataset, train_ratio=0.5, validation_ratio=0.25)
+        train_dates = set(train["date"])
+        validation_dates = set(validation["date"])
+        test_dates = set(test["date"])
+
+        self.assertFalse(train_dates & validation_dates)
+        self.assertFalse(train_dates & test_dates)
+        self.assertFalse(validation_dates & test_dates)
+
     def test_success_gate_requires_baseline_improvement_and_trades(self):
         baseline_metrics = {
             "total_rule_score_gt_0": {
