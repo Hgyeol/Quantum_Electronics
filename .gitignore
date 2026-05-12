@@ -8,5 +8,9 @@ uv.lock
 *.egg-info
 
 disclosure/files
+data/
+runtime/
+ml/artifacts/*
+!ml/artifacts/.gitkeep
 
 .omx
