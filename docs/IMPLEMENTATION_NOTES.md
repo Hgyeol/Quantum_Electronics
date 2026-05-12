@@ -2,7 +2,7 @@
 
 ## PRD Coverage
 
-- FastAPI service: implemented in `web/main.py` with `/health`, `/outlook/stock/{code}`, `/outlook/query`, and a partial `/outlook/market` skeleton.
+- FastAPI service: implemented in `web/main.py` with `/health` and `/outlook/stock/{code}`.
 - Outlook report schema: implemented with Pydantic models in `analysis/models.py`.
 - Quant signals: existing `quant/engine.py` is wired into `services/outlook.py`; failures are converted into report errors or neutral signals by the existing quant code.
 - News evidence: `news/naver_news_api.py` returns normalized `Evidence` and does not call Naver at import time.
@@ -21,5 +21,4 @@
 
 - The LLM provider client is OpenAI Responses API only; other providers can be added behind the same `StructuredLLMAnalyzer` contract.
 - DART corp code lookup currently uses `disclosure/kospi.csv`; non-KOSPI or missing mappings return recoverable errors.
-- Market-wide outlook is a skeleton endpoint.
 - External API behavior is covered with mock tests; live API tests require local credentials and should not be committed with secrets.

@@ -46,14 +46,12 @@ uvicorn web.main:app --reload
 Useful endpoints:
 
 - `GET /health`: service liveness.
-- `GET /outlook/stock/{code}?stock_name=...`: build an `OutlookReport` for a stock code.
-- `POST /outlook/query`: JSON body `{"query": "005930", "stock_name": "삼성전자"}`.
-- `GET /outlook/market`: partial skeleton for future market-wide reports.
+- `GET /outlook/stock/{code}`: build an `OutlookReport` for a stock code.
 
 Example:
 
 ```bash
-curl "http://127.0.0.1:8000/outlook/stock/005930?stock_name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90"
+curl "http://127.0.0.1:8000/outlook/stock/005930"
 ```
 
 Without KIS, DART, Naver, or LLM credentials, the API still returns a structured report with neutral/partial signals and recoverable error entries.

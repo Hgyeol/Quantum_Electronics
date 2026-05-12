@@ -1,5 +1,5 @@
 """Application service layer."""
 
-from services.outlook import OutlookQuery, OutlookService
+from services.outlook import OutlookService
 
-__all__ = ["OutlookQuery", "OutlookService"]
+__all__ = ["OutlookService"]

@@ -47,30 +47,25 @@ class FastAPIServiceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
 
-    def test_stock_outlook(self):
-        response = self.client.get("/outlook/stock/005930", params={"stock_name": "삼성전자"})
+    def test_stock_outlook_accepts_stock_code_path_variable(self):
+        response = self.client.get("/outlook/stock/005930")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["stock_code"], "005930")
-        self.assertEqual(payload["stock_name"], "삼성전자")
+        self.assertIsNone(payload["stock_name"])
         self.assertEqual(payload["score"]["direction"], "positive")
         self.assertEqual(payload["quant_signals"][0]["api_used"], "mock")
 
-    def test_query_outlook(self):
-        response = self.client.post(
-            "/outlook/query",
-            json={"query": "000660", "stock_name": "SK하이닉스"},
-        )
+    def test_query_outlook_route_is_removed(self):
+        response = self.client.post("/outlook/query", json={"query": "000660"})
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["stock_code"], "000660")
+        self.assertEqual(response.status_code, 404)
 
-    def test_market_skeleton(self):
+    def test_market_route_is_removed(self):
         response = self.client.get("/outlook/market")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["status"], "partial")
+        self.assertEqual(response.status_code, 404)
 
     def test_lookup_dart_stock_mapping_by_exact_name(self):
         stock = lookup_dart_stock_mapping("삼성전자")

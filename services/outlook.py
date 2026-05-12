@@ -7,8 +7,6 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from analysis.models import AnalysisError, OutlookReport
 from analysis.scoring import combine_signals
 from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosures
@@ -23,11 +21,6 @@ from quant.models import QuantSignal
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _STOCK_MASTER_CSV = _PROJECT_ROOT / "kospi.csv"
 _KOSPI_CSV = _PROJECT_ROOT / "disclosure" / "kospi.csv"
-
-
-class OutlookQuery(BaseModel):
-    query: str = Field(min_length=1)
-    stock_name: str | None = None
 
 
 class OutlookService:
