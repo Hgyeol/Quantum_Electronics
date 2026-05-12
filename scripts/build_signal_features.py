@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -19,7 +20,42 @@ from analysis.models import OutlookReport
 from ml.features import feature_row_from_report
 
 
-def _iter_report_rows(path: Path):
+def _parse_date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
+def _as_of_date(payload_as_of_date: str | None, metadata: dict, report: OutlookReport) -> date:
+    raw_value = payload_as_of_date or metadata.get("as_of_date")
+    if raw_value:
+        return date.fromisoformat(str(raw_value))
+    return report.generated_at.date()
+
+
+def _end_of_day_utc(value: date) -> datetime:
+    return datetime.combine(value, time.max, tzinfo=timezone.utc)
+
+
+def _remove_future_evidence(report: OutlookReport, as_of_date: date) -> OutlookReport:
+    cutoff = _end_of_day_utc(as_of_date)
+    evidence = []
+    for item in report.evidence:
+        if item.published_at is None:
+            evidence.append(item)
+            continue
+        published_at = item.published_at
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        if published_at <= cutoff:
+            evidence.append(item)
+    return report.model_copy(update={"evidence": evidence})
+
+
+def iter_report_feature_rows(
+    path: Path,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    drop_future_evidence: bool = True,
+):
     for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw_line.strip()
         if not line:
@@ -28,19 +64,40 @@ def _iter_report_rows(path: Path):
         as_of_date = payload.pop("as_of_date", None)
         metadata = payload.pop("metadata", {}) or {}
         report = OutlookReport.model_validate(payload)
-        yield feature_row_from_report(report, as_of_date=as_of_date or metadata.get("as_of_date"))
+        row_date = _as_of_date(as_of_date, metadata, report)
+        if start_date and row_date < start_date:
+            continue
+        if end_date and row_date > end_date:
+            continue
+        if drop_future_evidence:
+            report = _remove_future_evidence(report, row_date)
+        yield feature_row_from_report(report, as_of_date=row_date)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build signal feature CSV from OutlookReport JSONL")
     parser.add_argument("--reports", required=True, help="Input JSONL path with one OutlookReport per line")
     parser.add_argument("--output", required=True, help="Output feature CSV")
+    parser.add_argument("--start-date", help="Optional inclusive start date in YYYY-MM-DD")
+    parser.add_argument("--end-date", help="Optional inclusive end date in YYYY-MM-DD")
+    parser.add_argument(
+        "--keep-future-evidence",
+        action="store_true",
+        help="Do not drop evidence published after the row as_of_date",
+    )
     args = parser.parse_args()
 
-    rows = list(_iter_report_rows(Path(args.reports)))
+    rows = list(
+        iter_report_feature_rows(
+            Path(args.reports),
+            start_date=_parse_date(args.start_date),
+            end_date=_parse_date(args.end_date),
+            drop_future_evidence=not args.keep_future_evidence,
+        )
+    )
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(output_path, index=False)
+    pd.DataFrame(rows).drop_duplicates(subset=["date", "stock_code"], keep="last").to_csv(output_path, index=False)
     print(f"wrote {len(rows)} rows to {output_path}")
     return 0
 

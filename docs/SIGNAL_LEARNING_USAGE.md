@@ -35,10 +35,15 @@ If you already have saved `OutlookReport` JSONL records:
 ```bash
 python scripts/build_signal_features.py \
   --reports data/outlook_reports.jsonl \
-  --output data/features.csv
+  --output data/features.csv \
+  --start-date 2026-02-01 \
+  --end-date 2026-05-12
 ```
 
 Each JSONL line should be one `OutlookReport` object. You may include an `as_of_date` field to force the feature row date.
+By default, evidence with `published_at` after that row's `as_of_date` is
+excluded before feature counts are computed. This keeps replayed report
+archives from leaking future news or disclosures into earlier rows.
 
 ## 3. Build Labeled Dataset
 
