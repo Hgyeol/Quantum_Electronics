@@ -31,6 +31,8 @@ def run_daily_signal_learning_collection(
     reports_jsonl: str | Path = "data/outlook_reports.jsonl",
     features_csv: str | Path = "data/features.csv",
     price_days: int = 120,
+    min_calendar_days: int = 90,
+    min_stocks: int = 5,
     as_of_date: date | None = None,
     kis_auth_enabled: bool = False,
     force_kis_token: bool = False,
@@ -57,7 +59,12 @@ def run_daily_signal_learning_collection(
         features_csv=features_csv,
         service=outlook_service,
     )
-    readiness = check_signal_learning_inputs(features_csv, prices_csv)
+    readiness = check_signal_learning_inputs(
+        features_csv,
+        prices_csv,
+        min_calendar_days=min_calendar_days,
+        min_stocks=min_stocks,
+    )
     return {
         "stock_universe": {
             "path": str(stock_codes_csv),
@@ -85,6 +92,8 @@ def main() -> int:
     parser.add_argument("--reports-jsonl", default="data/outlook_reports.jsonl")
     parser.add_argument("--features-csv", default="data/features.csv")
     parser.add_argument("--price-days", type=int, default=120)
+    parser.add_argument("--min-calendar-days", type=int, default=90)
+    parser.add_argument("--min-stocks", type=int, default=5)
     parser.add_argument("--as-of-date", default=date.today().isoformat())
     parser.add_argument("--kis-auth", action="store_true")
     parser.add_argument("--force-kis-token", action="store_true")
@@ -99,6 +108,8 @@ def main() -> int:
         reports_jsonl=args.reports_jsonl,
         features_csv=args.features_csv,
         price_days=args.price_days,
+        min_calendar_days=args.min_calendar_days,
+        min_stocks=args.min_stocks,
         as_of_date=date.fromisoformat(args.as_of_date),
         kis_auth_enabled=args.kis_auth,
         force_kis_token=args.force_kis_token,

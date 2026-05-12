@@ -51,8 +51,18 @@ def _dataset_check(dataset_path: Path, min_calendar_days: int, min_stocks: int) 
     )
 
 
-def _input_readiness_check(features_path: Path, prices_path: Path) -> dict[str, Any]:
-    result = check_signal_learning_inputs(features_path, prices_path)
+def _input_readiness_check(
+    features_path: Path,
+    prices_path: Path,
+    min_calendar_days: int,
+    min_stocks: int,
+) -> dict[str, Any]:
+    result = check_signal_learning_inputs(
+        features_path,
+        prices_path,
+        min_calendar_days=min_calendar_days,
+        min_stocks=min_stocks,
+    )
     return _check(
         "technical.input_readiness",
         bool(result.get("ok")),
@@ -119,7 +129,7 @@ def audit_signal_learning_prd(
     min_stocks: int = 5,
 ) -> dict[str, Any]:
     checks = [
-        _input_readiness_check(features_path, prices_path),
+        _input_readiness_check(features_path, prices_path, min_calendar_days, min_stocks),
         _dataset_check(dataset_path, min_calendar_days, min_stocks),
         *_workflow_output_checks(workflow_dir),
         _model_success_check(workflow_dir / "outlook_logistic_v1.metrics.json"),

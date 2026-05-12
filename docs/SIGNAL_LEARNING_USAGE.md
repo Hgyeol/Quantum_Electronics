@@ -16,7 +16,8 @@ This exports `data/stock_codes.csv` from the root `kospi.csv`, refreshes
 `data/prices.csv`, and appends today's reports/features to
 `data/outlook_reports.jsonl` and `data/features.csv`. The command also prints a
 `readiness` summary showing whether the collected features already have a next
-trading-day price available for label generation.
+trading-day price available for label generation, plus progress toward the PRD
+minimum of 90 calendar days and 5 stocks.
 
 Run this once per trading day for the stocks you want to track:
 

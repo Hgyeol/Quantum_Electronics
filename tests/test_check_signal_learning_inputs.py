@@ -54,6 +54,8 @@ class CheckSignalLearningInputsTests(unittest.TestCase):
             result = check_signal_learning_inputs(features, prices)
 
             self.assertFalse(result["ok"])
+            self.assertEqual(result["prd_progress"]["feature_calendar_days"], 1)
+            self.assertEqual(result["prd_progress"]["remaining_calendar_days"], 89)
             self.assertEqual(result["labeling"]["labelable_feature_rows"], 0)
             self.assertEqual(result["labeling"]["missing_next_price_count"], 1)
 
@@ -71,9 +73,11 @@ class CheckSignalLearningInputsTests(unittest.TestCase):
                 ]
             ).to_csv(prices, index=False)
 
-            result = check_signal_learning_inputs(features, prices)
+            result = check_signal_learning_inputs(features, prices, min_calendar_days=1, min_stocks=1)
 
             self.assertTrue(result["ok"])
+            self.assertEqual(result["prd_progress"]["remaining_calendar_days"], 0)
+            self.assertEqual(result["prd_progress"]["remaining_stocks"], 0)
             self.assertEqual(result["labeling"]["labelable_feature_rows"], 1)
             self.assertEqual(result["labeling"]["labeled_dataset_rows"], 1)
 

@@ -13,7 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ml.dataset import _normalize_dates, build_labeled_dataset
 
 
-def check_signal_learning_inputs(features_csv: str | Path, prices_csv: str | Path) -> dict:
+def check_signal_learning_inputs(
+    features_csv: str | Path,
+    prices_csv: str | Path,
+    min_calendar_days: int = 90,
+    min_stocks: int = 5,
+) -> dict:
     features_path = Path(features_csv)
     prices_path = Path(prices_csv)
     if not features_path.exists():
@@ -46,11 +51,24 @@ def check_signal_learning_inputs(features_csv: str | Path, prices_csv: str | Pat
             labelable_rows += 1
 
     preview_dataset = build_labeled_dataset(features_path, prices_path)
+    feature_dates = features["date"].dropna()
+    feature_calendar_days = (
+        int((feature_dates.max() - feature_dates.min()).days) + 1 if not feature_dates.empty else 0
+    )
+    feature_stock_count = int(features["stock_code"].nunique()) if "stock_code" in features else 0
     return {
         "ok": labelable_rows > 0,
+        "prd_progress": {
+            "min_calendar_days": min_calendar_days,
+            "feature_calendar_days": feature_calendar_days,
+            "remaining_calendar_days": max(min_calendar_days - feature_calendar_days, 0),
+            "min_stocks": min_stocks,
+            "feature_stock_count": feature_stock_count,
+            "remaining_stocks": max(min_stocks - feature_stock_count, 0),
+        },
         "features": {
             "rows": int(len(features)),
-            "stock_count": int(features["stock_code"].nunique()) if "stock_code" in features else 0,
+            "stock_count": feature_stock_count,
             "date_count": int(features["date"].nunique()) if "date" in features else 0,
             "start_date": features["date"].min().date().isoformat() if len(features) else None,
             "end_date": features["date"].max().date().isoformat() if len(features) else None,
@@ -75,9 +93,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Check signal-learning feature/price readiness")
     parser.add_argument("--features", default="data/features.csv")
     parser.add_argument("--prices", default="data/prices.csv")
+    parser.add_argument("--min-calendar-days", type=int, default=90)
+    parser.add_argument("--min-stocks", type=int, default=5)
     args = parser.parse_args()
 
-    result = check_signal_learning_inputs(args.features, args.prices)
+    result = check_signal_learning_inputs(
+        args.features,
+        args.prices,
+        min_calendar_days=args.min_calendar_days,
+        min_stocks=args.min_stocks,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("ok") else 1
 
