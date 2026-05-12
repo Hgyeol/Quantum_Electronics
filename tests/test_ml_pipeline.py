@@ -278,6 +278,9 @@ class MLPipelineTests(unittest.TestCase):
         self.assertEqual(prediction.target, "next_day_up")
         self.assertGreaterEqual(prediction.probability, 0.0)
         self.assertLessEqual(prediction.probability, 1.0)
+        self.assertEqual(prediction.rule_score, report.score.total_score)
+        self.assertIsNotNone(prediction.explanation)
+        self.assertTrue(prediction.top_contributions)
 
     def test_outlook_report_jsonl_can_be_converted_to_feature_rows(self):
         report = OutlookReport(

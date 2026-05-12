@@ -171,6 +171,9 @@ python -m uvicorn web.main:app --host 127.0.0.1 --port 8000
 ```
 
 `GET /outlook/stock/{code}` will include `ml_prediction` when the model can be loaded.
+The prediction includes the next-day-up probability, model and feature
+versions, the current rule score/direction, a short rule-vs-ML explanation, and
+the top feature contributions that increased or decreased the model logit.
 
 ## 8. Cache LLM Signals
 

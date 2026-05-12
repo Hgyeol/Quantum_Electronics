@@ -106,11 +106,23 @@ class DomainModelTests(unittest.TestCase):
                 probability=0.57,
                 model="logistic_regression_v1",
                 features_version="v1",
+                rule_score=1,
+                rule_direction="positive",
+                explanation="ML and rule score are aligned.",
+                top_contributions=[
+                    {
+                        "feature": "quant_score",
+                        "value": 2,
+                        "contribution": 0.42,
+                        "direction": "increase",
+                    }
+                ],
             ),
         )
 
         self.assertEqual(report.ml_prediction.target, "next_day_up")
         self.assertEqual(report.ml_prediction.probability, 0.57)
+        self.assertEqual(report.ml_prediction.top_contributions[0].feature, "quant_score")
 
 
 if __name__ == "__main__":
