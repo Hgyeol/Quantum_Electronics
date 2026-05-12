@@ -127,6 +127,7 @@ class MLPipelineTests(unittest.TestCase):
         self.assertIn("total_rule_score_gt_0", baselines)
         self.assertIn("mean_return_when_pred_up", baselines["always_up"])
         self.assertIn("roc_auc", baselines["always_up"])
+        self.assertIn("selected_stock_count", baselines["always_up"])
 
     def test_success_gate_requires_baseline_improvement_and_trades(self):
         baseline_metrics = {
@@ -139,12 +140,38 @@ class MLPipelineTests(unittest.TestCase):
             "precision": 0.5,
             "mean_return_when_pred_up": 0.02,
             "trade_count": 3,
+            "selected_stock_count": 1,
+        }
+
+        result = success_gate(
+            model_metrics,
+            baseline_metrics,
+            min_trade_count=3,
+            min_selected_stock_count=1,
+        )
+
+        self.assertTrue(result["passes"])
+        self.assertTrue(result["improves_mean_return"])
+        self.assertTrue(result["enough_stock_coverage"])
+
+    def test_success_gate_rejects_single_stock_model_by_default(self):
+        baseline_metrics = {
+            "total_rule_score_gt_0": {
+                "precision": 0.5,
+                "mean_return_when_pred_up": 0.01,
+            }
+        }
+        model_metrics = {
+            "precision": 0.6,
+            "mean_return_when_pred_up": 0.02,
+            "trade_count": 10,
+            "selected_stock_count": 1,
         }
 
         result = success_gate(model_metrics, baseline_metrics)
 
-        self.assertTrue(result["passes"])
-        self.assertTrue(result["improves_mean_return"])
+        self.assertFalse(result["passes"])
+        self.assertFalse(result["enough_stock_coverage"])
 
     def test_train_logistic_regression_saves_and_loads_model(self):
         dataset = pd.DataFrame(

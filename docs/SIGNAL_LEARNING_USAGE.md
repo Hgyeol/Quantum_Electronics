@@ -113,13 +113,17 @@ Metrics include accuracy, precision, recall, ROC-AUC, win rate, trade count, tur
 python scripts/train_outlook_model.py \
   --dataset data/ml_dataset.csv \
   --output ml/artifacts/outlook_logistic_v1.json \
-  --metrics-output ml/artifacts/outlook_logistic_v1.metrics.json
+  --metrics-output ml/artifacts/outlook_logistic_v1.metrics.json \
+  --min-trade-count 5 \
+  --min-selected-stock-count 2
 ```
 
 The script uses chronological train/validation/test splits, prints
 baseline-vs-model metrics, and includes a `success_gate` that passes when the
 model improves precision or mean selected return over `total_rule_score > 0`
-while still making trades.
+while still making enough trades across more than one selected stock. It also
+prints `coefficient_importance`, sorted by absolute logistic-regression
+coefficient, so you can inspect which signals influenced the first model most.
 
 ## 6. Use Model in FastAPI
 

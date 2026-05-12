@@ -79,6 +79,9 @@ def evaluate_predictions(
     if evaluated.empty:
         return {
             "rows": 0,
+            "date_count": 0,
+            "stock_count": 0,
+            "selected_stock_count": 0,
             "accuracy": 0.0,
             "precision": 0.0,
             "recall": 0.0,
@@ -97,11 +100,15 @@ def evaluate_predictions(
     tp = int(((y_true == 1) & (y_pred == 1)).sum())
     fp = int(((y_true == 0) & (y_pred == 1)).sum())
     fn = int(((y_true == 1) & (y_pred == 0)).sum())
-    selected_returns = evaluated.loc[y_pred == 1, "next_day_return"]
+    selected = evaluated.loc[y_pred == 1]
+    selected_returns = selected["next_day_return"]
     cumulative_return = float((1 + selected_returns.fillna(0.0)).prod() - 1) if not selected_returns.empty else 0.0
 
     return {
         "rows": int(len(evaluated)),
+        "date_count": int(evaluated["date"].nunique()) if "date" in evaluated.columns else 0,
+        "stock_count": int(evaluated["stock_code"].nunique()) if "stock_code" in evaluated.columns else 0,
+        "selected_stock_count": int(selected["stock_code"].nunique()) if "stock_code" in selected.columns else 0,
         "accuracy": round(float((y_true == y_pred).mean()), 4),
         "precision": round(_safe_divide(tp, tp + fp), 4),
         "recall": round(_safe_divide(tp, tp + fn), 4),
@@ -140,11 +147,14 @@ def success_gate(
     model_metrics: dict[str, float | int],
     baseline_metrics: dict[str, dict[str, float | int]],
     baseline_name: str = "total_rule_score_gt_0",
+    min_trade_count: int = 5,
+    min_selected_stock_count: int = 2,
 ) -> dict[str, bool | float | int | str]:
     """Check PRD model success against a baseline.
 
     The PRD considers a model useful if validation/test improves either
-    precision or mean selected return while still making at least one trade.
+    precision or mean selected return while still making enough trades across
+    more than one stock to reduce single-name overfitting risk.
     """
     baseline = baseline_metrics.get(baseline_name)
     if baseline is None:
@@ -155,9 +165,12 @@ def success_gate(
     model_return = float(model_metrics.get("mean_return_when_pred_up", 0.0))
     baseline_return = float(baseline.get("mean_return_when_pred_up", 0.0))
     trade_count = int(model_metrics.get("trade_count", 0))
+    selected_stock_count = int(model_metrics.get("selected_stock_count", 0))
     improves_precision = model_precision > baseline_precision
     improves_mean_return = model_return > baseline_return
-    passes = trade_count > 0 and (improves_precision or improves_mean_return)
+    enough_trades = trade_count >= min_trade_count
+    enough_stock_coverage = selected_stock_count >= min_selected_stock_count
+    passes = enough_trades and enough_stock_coverage and (improves_precision or improves_mean_return)
 
     return {
         "passes": passes,
@@ -167,6 +180,11 @@ def success_gate(
         "model_mean_return": model_return,
         "baseline_mean_return": baseline_return,
         "trade_count": trade_count,
+        "min_trade_count": min_trade_count,
+        "selected_stock_count": selected_stock_count,
+        "min_selected_stock_count": min_selected_stock_count,
         "improves_precision": improves_precision,
         "improves_mean_return": improves_mean_return,
+        "enough_trades": enough_trades,
+        "enough_stock_coverage": enough_stock_coverage,
     }

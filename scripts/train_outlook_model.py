@@ -21,6 +21,8 @@ def main() -> int:
     parser.add_argument("--metrics-output", help="Optional JSON path for training/evaluation metrics")
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--learning-rate", type=float, default=0.1)
+    parser.add_argument("--min-trade-count", type=int, default=5)
+    parser.add_argument("--min-selected-stock-count", type=int, default=2)
     args = parser.parse_args()
 
     dataset = pd.read_csv(args.dataset, dtype={"stock_code": str})
@@ -38,6 +40,19 @@ def main() -> int:
     test_baselines = evaluate_baselines(test)
     validation_model_metrics = evaluate_predictions(validation_scored, "ml_predicted_up", "ml_probability_up")
     test_model_metrics = evaluate_predictions(test_scored, "ml_predicted_up", "ml_probability_up")
+    coefficient_importance = [
+        {
+            "feature": feature,
+            "coefficient": coefficient,
+            "absolute_coefficient": abs(coefficient),
+        }
+        for feature, coefficient in model.weights.items()
+    ]
+    coefficient_importance = sorted(
+        coefficient_importance,
+        key=lambda item: item["absolute_coefficient"],
+        reverse=True,
+    )
     output = {
         "model": args.output,
         "rows": {
@@ -48,14 +63,25 @@ def main() -> int:
         "validation": {
             "baselines": validation_baselines,
             "model": validation_model_metrics,
-            "success_gate": success_gate(validation_model_metrics, validation_baselines),
+            "success_gate": success_gate(
+                validation_model_metrics,
+                validation_baselines,
+                min_trade_count=args.min_trade_count,
+                min_selected_stock_count=args.min_selected_stock_count,
+            ),
         },
         "test": {
             "baselines": test_baselines,
             "model": test_model_metrics,
-            "success_gate": success_gate(test_model_metrics, test_baselines),
+            "success_gate": success_gate(
+                test_model_metrics,
+                test_baselines,
+                min_trade_count=args.min_trade_count,
+                min_selected_stock_count=args.min_selected_stock_count,
+            ),
         },
         "coefficients": model.weights,
+        "coefficient_importance": coefficient_importance,
         "bias": model.bias,
     }
     rendered = json.dumps(output, ensure_ascii=False, indent=2)
