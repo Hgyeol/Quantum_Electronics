@@ -88,6 +88,8 @@ launchctl load ~/Library/LaunchAgents/com.quantum-electronics.signal-learning-da
 The default schedule is 16:10 local time. Logs are written to
 `runtime/signal_learning_daily.out.log` and
 `runtime/signal_learning_daily.err.log`.
+The daily collector loads the repo-root `.env` file before reading API keys, so
+the launchd job does not depend on interactive shell environment variables.
 
 ## 2. Build Feature CSV From Existing Reports
 

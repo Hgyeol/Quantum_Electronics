@@ -4,16 +4,31 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 from scripts.collect_price_history import collect_price_history, read_codes
 from scripts.collect_signal_features import collect_signal_features
 from scripts.export_stock_universe import export_stock_universe
 from scripts.run_signal_learning_workflow import run_signal_learning_workflow
+
+
+def load_dotenv_file(path: str | Path = PROJECT_ROOT / ".env") -> None:
+    dotenv_path = Path(path)
+    if not dotenv_path.exists():
+        return
+
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 def _authenticate_kis(force_token: bool, kis_server: str) -> None:
@@ -104,6 +119,8 @@ def run_daily_signal_learning_collection(
 
 
 def main() -> int:
+    load_dotenv_file()
+
     parser = argparse.ArgumentParser(description="Collect daily signal-learning inputs")
     parser.add_argument("--stock-codes-csv", default="data/stock_codes.csv")
     parser.add_argument("--master-csv", default="kospi.csv")

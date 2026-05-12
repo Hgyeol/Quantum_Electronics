@@ -2,12 +2,13 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
 from analysis.models import OutlookReport
 from analysis.scoring import combine_signals
-from scripts.collect_daily_signal_learning_inputs import run_daily_signal_learning_collection
+from scripts.collect_daily_signal_learning_inputs import load_dotenv_file, run_daily_signal_learning_collection
 
 
 class FakeOutlookService:
@@ -20,6 +21,29 @@ class FakeOutlookService:
 
 
 class CollectDailySignalLearningInputsTests(unittest.TestCase):
+    def test_load_dotenv_file_sets_missing_values_without_overriding_existing_env(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dotenv = Path(tmpdir) / ".env"
+            dotenv.write_text(
+                "\n".join(
+                    [
+                        "OPENAI_API_KEY=from-file",
+                        "NAVER_NEWS_API_CLIENT='naver-client'",
+                        "EXISTING_VALUE=from-file",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict("os.environ", {"EXISTING_VALUE": "from-env"}, clear=True):
+                load_dotenv_file(dotenv)
+
+                import os
+
+                self.assertEqual(os.environ["OPENAI_API_KEY"], "from-file")
+                self.assertEqual(os.environ["NAVER_NEWS_API_CLIENT"], "naver-client")
+                self.assertEqual(os.environ["EXISTING_VALUE"], "from-env")
+
     def test_daily_collection_exports_universe_prices_and_features(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
