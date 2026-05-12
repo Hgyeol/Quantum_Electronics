@@ -24,6 +24,9 @@ python scripts/collect_signal_features.py \
 
 `reports-jsonl` is append-only. `features-csv` is deduplicated by
 `date,stock_code`, so rerunning the same date overwrites that day's feature row.
+The collector uses current live data, so it rejects non-today `--as-of-date`
+unless `--allow-date-override` is explicitly set for controlled replays of
+already time-correct reports.
 
 ## 2. Build Feature CSV From Existing Reports
 

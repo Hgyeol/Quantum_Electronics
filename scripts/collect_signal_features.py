@@ -64,7 +64,14 @@ def collect_signal_features(
     reports_jsonl: str | Path,
     features_csv: str | Path,
     service: OutlookService | None = None,
+    allow_date_override: bool = False,
 ) -> dict[str, int]:
+    if as_of_date != date.today() and not allow_date_override:
+        raise ValueError(
+            "collect_signal_features uses current live data, so as_of_date must be today. "
+            "Use allow_date_override only when replaying already time-correct reports."
+        )
+
     outlook_service = service or OutlookService()
     report_records = []
     feature_rows = []
@@ -85,6 +92,11 @@ def main() -> int:
     parser.add_argument("codes", nargs="*", help="Stock codes, e.g. 005930 000660")
     parser.add_argument("--codes-file", help="Optional newline or CSV file whose first column is stock_code")
     parser.add_argument("--as-of-date", default=date.today().isoformat(), help="Feature date in YYYY-MM-DD")
+    parser.add_argument(
+        "--allow-date-override",
+        action="store_true",
+        help="Allow non-today as_of_date only for controlled replays of time-correct data",
+    )
     parser.add_argument("--reports-jsonl", required=True, help="Append-only OutlookReport JSONL path")
     parser.add_argument("--features-csv", required=True, help="Deduplicated feature CSV path")
     args = parser.parse_args()
@@ -97,6 +109,7 @@ def main() -> int:
         as_of_date=date.fromisoformat(args.as_of_date),
         reports_jsonl=args.reports_jsonl,
         features_csv=args.features_csv,
+        allow_date_override=args.allow_date_override,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
