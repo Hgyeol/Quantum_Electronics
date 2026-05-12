@@ -86,6 +86,50 @@ class SignalLearningWorkflowTests(unittest.TestCase):
             self.assertTrue((output_dir / "outlook_logistic_v1.metrics.json").exists())
             self.assertTrue((output_dir / "workflow_summary.json").exists())
 
+    def test_workflow_stops_before_empty_dataset_when_inputs_have_no_next_price(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            features_path = tmp / "features.csv"
+            prices_path = tmp / "prices.csv"
+            output_dir = tmp / "workflow"
+            row = {
+                "date": "2026-05-12",
+                "stock_code": "005930",
+                "stock_name": "삼성전자",
+                "quant_score": 1,
+                "ai_score": 0,
+                "financial_score": 0,
+                "total_rule_score": 1,
+                "golden_cross_score": 1,
+                "disparity_score": 0,
+                "momentum_score": 1,
+                "foreign_investor_score": 0,
+                "volume_score": 0,
+                "llm_direction": "positive",
+                "llm_score": 1,
+                "llm_confidence": 0.6,
+                "financial_revenue_growth_score": 0,
+                "financial_margin_score": 0,
+                "financial_debt_score": 0,
+                "news_count": 1,
+                "disclosure_count": 0,
+                "financial_evidence_count": 1,
+            }
+            pd.DataFrame([row], columns=FEATURE_COLUMNS).to_csv(features_path, index=False)
+            pd.DataFrame(
+                [{"date": "2026-05-12", "stock_code": "005930", "close": 100}]
+            ).to_csv(prices_path, index=False)
+
+            summary = run_signal_learning_workflow(
+                features_csv=features_path,
+                prices_csv=prices_path,
+                output_dir=output_dir,
+            )
+
+            self.assertEqual(summary["stopped_at"], "input_readiness")
+            self.assertFalse((output_dir / "ml_dataset.csv").exists())
+            self.assertTrue((output_dir / "workflow_summary.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

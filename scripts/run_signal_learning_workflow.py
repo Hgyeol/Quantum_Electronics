@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ml.dataset import build_labeled_dataset
 from ml.evaluation import evaluate_baselines, split_by_time
 from ml.verification import verify_labeled_dataset
+from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 from scripts.train_outlook_model import train_and_evaluate_model
 
 
@@ -57,6 +58,21 @@ def run_signal_learning_workflow(
     model_metrics_path = output_root / "outlook_logistic_v1.metrics.json"
     summary_path = output_root / "workflow_summary.json"
 
+    input_readiness = check_signal_learning_inputs(features_csv, prices_csv)
+    summary = {
+        "ok": False,
+        "input_readiness": input_readiness,
+        "dataset": str(dataset_path),
+        "verification": None,
+        "baseline_metrics": None,
+        "model": None,
+        "model_metrics": None,
+    }
+    if not input_readiness.get("ok"):
+        summary["stopped_at"] = "input_readiness"
+        _write_json(summary_path, summary)
+        return summary
+
     dataset = build_labeled_dataset(features_csv, prices_csv, dataset_path)
     verification = verify_labeled_dataset(
         dataset,
@@ -66,14 +82,7 @@ def run_signal_learning_workflow(
     verification_payload = verification.to_dict()
     _write_json(verification_path, verification_payload)
 
-    summary = {
-        "ok": False,
-        "dataset": str(dataset_path),
-        "verification": str(verification_path),
-        "baseline_metrics": None,
-        "model": None,
-        "model_metrics": None,
-    }
+    summary["verification"] = str(verification_path)
     if not verification.ok and not continue_on_verification_failure:
         summary["verification_ok"] = False
         summary["stopped_at"] = "verification"

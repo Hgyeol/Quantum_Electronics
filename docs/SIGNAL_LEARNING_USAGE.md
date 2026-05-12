@@ -182,7 +182,9 @@ The workflow writes:
 - `workflow_summary.json`
 
 It exits non-zero if the dataset fails the default PRD readiness gate of 90
-calendar days and 5 stocks.
+calendar days and 5 stocks. If the raw features/prices cannot produce any
+next-day labels yet, the workflow stops at `input_readiness` before writing an
+empty `ml_dataset.csv`.
 
 You can audit the current local artifacts against the PRD gates at any time:
 
