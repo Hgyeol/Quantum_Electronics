@@ -188,6 +188,7 @@ The workflow writes:
 - `ml_dataset.csv`
 - `verification.json`
 - `baseline_metrics.json`
+- `backtest_metrics.json`
 - `outlook_logistic_v1.json`
 - `outlook_logistic_v1.metrics.json`
 - `workflow_summary.json`

@@ -6,6 +6,7 @@ import pandas as pd
 
 from analysis.models import AISignal, Evidence, FinancialSignal, OutlookReport
 from analysis.scoring import combine_signals
+from ml.backtest import evaluate_backtest_suite
 from ml.dataset import attach_next_day_labels, build_labeled_dataset, prepare_model_features
 from ml.evaluation import evaluate_baselines, split_by_time, success_gate
 from ml.features import feature_row_from_report
@@ -220,6 +221,23 @@ class MLPipelineTests(unittest.TestCase):
 
         self.assertEqual(len(probabilities), len(dataset))
         self.assertTrue(((probabilities >= 0) & (probabilities <= 1)).all())
+
+    def test_evaluate_backtest_suite_includes_baselines_and_model(self):
+        dataset = pd.DataFrame(
+            [
+                {**self._sample_features().iloc[0].to_dict(), "target_up": 1, "next_day_return": 0.02},
+                {**self._sample_features().iloc[1].to_dict(), "target_up": 0, "next_day_return": -0.01},
+                {**self._sample_features().iloc[0].to_dict(), "date": "2026-05-12", "target_up": 1, "next_day_return": 0.03},
+                {**self._sample_features().iloc[1].to_dict(), "date": "2026-05-13", "target_up": 0, "next_day_return": -0.02},
+            ]
+        )
+        model = train_logistic_regression(dataset, epochs=20)
+
+        result = evaluate_backtest_suite(dataset, model)
+
+        self.assertIn("total_rule_score_gt_0", result["validation"])
+        self.assertIn("model", result["test"])
+        self.assertIn("cumulative_return", result["test"]["model"])
 
     def test_feature_row_from_report_matches_prd_columns(self):
         quant = [

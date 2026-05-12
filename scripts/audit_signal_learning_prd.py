@@ -76,6 +76,7 @@ def _workflow_output_checks(workflow_dir: Path) -> list[dict[str, Any]]:
         "technical.labeled_dataset_output": workflow_dir / "ml_dataset.csv",
         "technical.verification_output": workflow_dir / "verification.json",
         "phase1.baseline_metrics_output": workflow_dir / "baseline_metrics.json",
+        "technical.backtest_metrics_output": workflow_dir / "backtest_metrics.json",
         "phase3.model_artifact_output": workflow_dir / "outlook_logistic_v1.json",
         "phase3.model_metrics_output": workflow_dir / "outlook_logistic_v1.metrics.json",
         "workflow.summary_output": workflow_dir / "workflow_summary.json",

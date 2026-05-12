@@ -46,6 +46,7 @@ current local inputs yet.
 | Logistic Regression training | Implemented | `ml/training.py`, `scripts/train_outlook_model.py` |
 | Time-ordered split | Implemented | date-level `split_by_time` in `ml/evaluation.py` |
 | Backtest metrics | Implemented | accuracy, precision, recall, ROC-AUC, win rate, turnover, return, drawdown |
+| Backtest artifact | Implemented | `backtest_metrics.json` from workflow |
 | LLM cache | Implemented | `llm/cache.py`, `OUTLOOK_LLM_CACHE_PATH` |
 | FastAPI ML prediction hook | Implemented | `ml/runtime.py`, `analysis/models.py`, `services/outlook.py` |
 | Model explanation | Implemented | `ml_prediction.explanation`, `top_contributions` |

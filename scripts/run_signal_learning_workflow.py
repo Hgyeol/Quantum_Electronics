@@ -10,8 +10,10 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from ml.backtest import evaluate_backtest_suite
 from ml.dataset import build_labeled_dataset
 from ml.evaluation import evaluate_baselines, split_by_time
+from ml.training import load_logistic_regression
 from ml.verification import verify_labeled_dataset
 from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 from scripts.train_outlook_model import train_and_evaluate_model
@@ -59,6 +61,7 @@ def run_signal_learning_workflow(
     dataset_path = output_root / "ml_dataset.csv"
     verification_path = output_root / "verification.json"
     baseline_metrics_path = output_root / "baseline_metrics.json"
+    backtest_metrics_path = output_root / "backtest_metrics.json"
     model_path = output_root / "outlook_logistic_v1.json"
     model_metrics_path = output_root / "outlook_logistic_v1.metrics.json"
     summary_path = output_root / "workflow_summary.json"
@@ -75,6 +78,7 @@ def run_signal_learning_workflow(
         "dataset": str(dataset_path),
         "verification": None,
         "baseline_metrics": None,
+        "backtest_metrics": None,
         "model": None,
         "model_metrics": None,
     }
@@ -85,6 +89,7 @@ def run_signal_learning_workflow(
                 dataset_path,
                 verification_path,
                 baseline_metrics_path,
+                backtest_metrics_path,
                 model_path,
                 model_metrics_path,
             ]
@@ -120,12 +125,15 @@ def run_signal_learning_workflow(
         min_selected_stock_count=min_selected_stock_count,
     )
     _write_json(model_metrics_path, model_metrics)
+    backtest_metrics = evaluate_backtest_suite(dataset, load_logistic_regression(model_path))
+    _write_json(backtest_metrics_path, backtest_metrics)
 
     summary.update(
         {
             "ok": verification.ok,
             "verification_ok": verification.ok,
             "baseline_metrics": str(baseline_metrics_path),
+            "backtest_metrics": str(backtest_metrics_path),
             "model": str(model_path),
             "model_metrics": str(model_metrics_path),
             "validation_success_gate": model_metrics["validation"]["success_gate"],

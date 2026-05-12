@@ -84,6 +84,7 @@ class SignalLearningWorkflowTests(unittest.TestCase):
             self.assertTrue((output_dir / "ml_dataset.csv").exists())
             self.assertTrue((output_dir / "verification.json").exists())
             self.assertTrue((output_dir / "baseline_metrics.json").exists())
+            self.assertTrue((output_dir / "backtest_metrics.json").exists())
             self.assertTrue((output_dir / "outlook_logistic_v1.json").exists())
             self.assertTrue((output_dir / "outlook_logistic_v1.metrics.json").exists())
             self.assertTrue((output_dir / "workflow_summary.json").exists())
@@ -126,6 +127,7 @@ class SignalLearningWorkflowTests(unittest.TestCase):
                 "ml_dataset.csv",
                 "verification.json",
                 "baseline_metrics.json",
+                "backtest_metrics.json",
                 "outlook_logistic_v1.json",
                 "outlook_logistic_v1.metrics.json",
             ]:
@@ -141,6 +143,7 @@ class SignalLearningWorkflowTests(unittest.TestCase):
             self.assertFalse((output_dir / "ml_dataset.csv").exists())
             self.assertFalse((output_dir / "verification.json").exists())
             self.assertFalse((output_dir / "baseline_metrics.json").exists())
+            self.assertFalse((output_dir / "backtest_metrics.json").exists())
             self.assertFalse((output_dir / "outlook_logistic_v1.json").exists())
             self.assertFalse((output_dir / "outlook_logistic_v1.metrics.json").exists())
             self.assertTrue((output_dir / "workflow_summary.json").exists())
