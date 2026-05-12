@@ -1,8 +1,11 @@
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
-from scripts.audit_signal_learning_prd import audit_signal_learning_prd
+from scripts.audit_signal_learning_prd import audit_signal_learning_prd, main
 
 
 class SignalLearningPRDAuditTests(unittest.TestCase):
@@ -22,6 +25,15 @@ class SignalLearningPRDAuditTests(unittest.TestCase):
             self.assertIn("technical.dataset_ready", failed_names)
             self.assertIn("phase3.model_artifact_output", failed_names)
             self.assertIn("model.success_gate", failed_names)
+
+    def test_cli_defaults_match_workflow_output_dir(self):
+        output = StringIO()
+        with patch("sys.argv", ["audit_signal_learning_prd.py"]):
+            with redirect_stdout(output):
+                exit_code = main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("ml/artifacts/signal_learning_v1/ml_dataset.csv", output.getvalue())
 
 
 if __name__ == "__main__":

@@ -124,7 +124,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Audit signal-learning PRD artifacts")
     parser.add_argument(
         "--dataset",
-        default="data/ml_dataset.csv",
+        default="ml/artifacts/signal_learning_v1/ml_dataset.csv",
         help="Labeled dataset CSV to verify",
     )
     parser.add_argument(

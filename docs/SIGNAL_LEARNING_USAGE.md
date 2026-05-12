@@ -164,9 +164,7 @@ calendar days and 5 stocks.
 You can audit the current local artifacts against the PRD gates at any time:
 
 ```bash
-python scripts/audit_signal_learning_prd.py \
-  --dataset ml/artifacts/signal_learning_v1/ml_dataset.csv \
-  --workflow-dir ml/artifacts/signal_learning_v1
+python scripts/audit_signal_learning_prd.py
 ```
 
 This command is intentionally strict: missing data, failed 90-day/5-stock
