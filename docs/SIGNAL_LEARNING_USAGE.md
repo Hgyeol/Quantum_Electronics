@@ -19,8 +19,10 @@ This exports `data/stock_codes.csv` from the root `kospi.csv`, refreshes
 `readiness` summary showing whether the collected features already have a next
 trading-day price available for label generation, plus progress toward the PRD
 minimum of 90 calendar days and 5 stocks, including the target calendar end
-date for the 90-day gate. With `--run-workflow-if-ready`, it
-also starts the dataset/model workflow automatically once labels can be built.
+date for the 90-day gate. With `--run-workflow-if-ready`, it starts the
+dataset/model workflow automatically only after the full readiness gate passes:
+at least one labelable row, at least 90 calendar days of feature history, and
+at least 5 tracked stocks.
 
 Run this once per trading day for the stocks you want to track:
 

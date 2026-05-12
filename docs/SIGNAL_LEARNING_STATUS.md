@@ -13,22 +13,24 @@ python scripts/audit_signal_learning_prd.py
 
 Current local inputs:
 
-- Feature rows: 5
+- Feature rows: 10
 - Feature stocks: 5
-- Feature dates: 1 calendar day, `2026-05-12`
-- Price rows: 500
+- Feature dates: 2 calendar days, `2026-05-12` to `2026-05-13`
+- Price rows: 505
 - Price stocks: 5
-- Price range: `2025-12-11` to `2026-05-12`
-- Labelable feature rows: 0
-- PRD remaining calendar days: 89
+- Price range: `2025-12-11` to `2026-05-13`
+- Labelable feature rows: 5
+- PRD remaining calendar days: 88
 - PRD remaining stocks: 0
 - PRD target calendar end date: `2026-08-09`
 
 The current blocker is not code execution. The blocker is data availability:
-the collected `2026-05-12` feature rows do not yet have a next trading-day price.
-Because the default PRD gate requires 90 calendar days of features, the final
-model artifact and validation/test success gates cannot be produced from the
-current local inputs yet.
+the collected features span only 2 calendar days. Because the default PRD gate
+requires 90 calendar days of features, the final model artifact and
+validation/test success gates cannot be produced from the current local inputs
+yet. The `2026-05-12` feature rows are now labelable with `2026-05-13` prices,
+but the `2026-05-13` feature rows still need a future trading-day price before
+they can be labeled.
 
 ## Requirement Checklist
 
@@ -54,7 +56,7 @@ current local inputs yet.
 | Workflow runner | Implemented | `scripts/run_signal_learning_workflow.py` |
 | Workflow readiness gates configurable | Implemented | `min_calendar_days`, `min_stocks` are passed into input readiness |
 | PRD audit | Implemented | `scripts/audit_signal_learning_prd.py` |
-| 3 months actual feature dataset | Not complete | current feature calendar days: 1 |
+| 3 months actual feature dataset | Not complete | current feature calendar days: 2 |
 | 5+ stocks actual dataset | Data input met | current feature stock count: 5 |
 | Validation/test model success gate | Not complete | requires labeled dataset and model metrics |
 
