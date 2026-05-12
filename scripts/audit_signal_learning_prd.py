@@ -151,6 +151,31 @@ def _llm_cache_check() -> dict[str, Any]:
     )
 
 
+def _api_contract_check() -> dict[str, Any]:
+    web_path = Path("web/main.py")
+    model_path = Path("analysis/models.py")
+    test_path = Path("tests/test_fastapi_service.py")
+    web_source = web_path.read_text(encoding="utf-8") if web_path.exists() else ""
+    model_source = model_path.read_text(encoding="utf-8") if model_path.exists() else ""
+    test_source = test_path.read_text(encoding="utf-8") if test_path.exists() else ""
+    ok = (
+        "response_model=OutlookReport" in web_source
+        and '"/outlook/stock/{code}"' in web_source
+        and "ml_prediction: MLPrediction" in model_source
+        and "test_stock_outlook_serializes_ml_prediction" in test_source
+    )
+    return _check(
+        "service.api_ml_prediction_contract",
+        ok,
+        "Checked FastAPI route, OutlookReport schema, and API contract test",
+        {
+            "route_module": str(web_path),
+            "schema_module": str(model_path),
+            "contract_test": str(test_path),
+        },
+    )
+
+
 def audit_signal_learning_prd(
     dataset_path: Path,
     workflow_dir: Path,
@@ -166,6 +191,7 @@ def audit_signal_learning_prd(
         _llm_cache_check(),
         _model_success_check(workflow_dir / "outlook_logistic_v1.metrics.json"),
         _service_contract_check(workflow_dir / "outlook_logistic_v1.json"),
+        _api_contract_check(),
     ]
     ok = all(item["ok"] for item in checks)
     return {

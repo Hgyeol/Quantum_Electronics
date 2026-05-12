@@ -30,6 +30,8 @@ class SignalLearningPRDAuditTests(unittest.TestCase):
             self.assertIn("model.success_gate", failed_names)
             cache_check = next(item for item in result["checks"] if item["name"] == "technical.llm_cache_available")
             self.assertTrue(cache_check["ok"])
+            api_check = next(item for item in result["checks"] if item["name"] == "service.api_ml_prediction_contract")
+            self.assertTrue(api_check["ok"])
 
     def test_cli_defaults_match_workflow_output_dir(self):
         output = StringIO()
