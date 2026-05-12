@@ -30,7 +30,7 @@ class BuildSignalFeaturesTests(unittest.TestCase):
                         kind="news",
                         source="mock",
                         title="known on date",
-                        published_at=datetime(2026, 5, 11, 8, 0, tzinfo=timezone.utc),
+                        published_at=datetime(2026, 5, 11, 5, 0, tzinfo=timezone.utc),
                     ),
                     Evidence(
                         evidence_id="news-2",
@@ -58,6 +58,37 @@ class BuildSignalFeaturesTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["stock_code"], "000660")
             self.assertEqual(rows[0]["date"], "2026-05-11")
+            self.assertEqual(rows[0]["news_count"], 1)
+
+    def test_iter_report_feature_rows_filters_same_day_after_market_close(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reports_path = Path(tmpdir) / "reports.jsonl"
+            report = OutlookReport(
+                stock_code="005930",
+                stock_name="삼성전자",
+                score=combine_signals(),
+                evidence=[
+                    Evidence(
+                        evidence_id="news-1",
+                        kind="news",
+                        source="mock",
+                        title="before close",
+                        published_at=datetime(2026, 5, 11, 6, 29, tzinfo=timezone.utc),
+                    ),
+                    Evidence(
+                        evidence_id="news-2",
+                        kind="news",
+                        source="mock",
+                        title="after close",
+                        published_at=datetime(2026, 5, 11, 6, 31, tzinfo=timezone.utc),
+                    ),
+                ],
+            ).model_dump(mode="json")
+            report["as_of_date"] = "2026-05-11"
+            reports_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+
+            rows = list(iter_report_feature_rows(reports_path))
+
             self.assertEqual(rows[0]["news_count"], 1)
 
 

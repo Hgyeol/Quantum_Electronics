@@ -12,6 +12,7 @@ import json
 import sys
 from datetime import date, datetime, time, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -31,12 +32,21 @@ def _as_of_date(payload_as_of_date: str | None, metadata: dict, report: OutlookR
     return report.generated_at.date()
 
 
-def _end_of_day_utc(value: date) -> datetime:
-    return datetime.combine(value, time.max, tzinfo=timezone.utc)
+def _cutoff_datetime(value: date, cutoff_time: str | None, cutoff_timezone: str) -> datetime:
+    if cutoff_time is None:
+        return datetime.combine(value, time.max, tzinfo=timezone.utc)
+    hour, minute = [int(part) for part in cutoff_time.split(":", maxsplit=1)]
+    local_cutoff = datetime.combine(value, time(hour=hour, minute=minute), tzinfo=ZoneInfo(cutoff_timezone))
+    return local_cutoff.astimezone(timezone.utc)
 
 
-def _remove_future_evidence(report: OutlookReport, as_of_date: date) -> OutlookReport:
-    cutoff = _end_of_day_utc(as_of_date)
+def _remove_future_evidence(
+    report: OutlookReport,
+    as_of_date: date,
+    cutoff_time: str | None = "15:30",
+    cutoff_timezone: str = "Asia/Seoul",
+) -> OutlookReport:
+    cutoff = _cutoff_datetime(as_of_date, cutoff_time, cutoff_timezone)
     evidence = []
     for item in report.evidence:
         if item.published_at is None:
@@ -55,6 +65,8 @@ def iter_report_feature_rows(
     start_date: date | None = None,
     end_date: date | None = None,
     drop_future_evidence: bool = True,
+    cutoff_time: str | None = "15:30",
+    cutoff_timezone: str = "Asia/Seoul",
 ):
     for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw_line.strip()
@@ -70,7 +82,7 @@ def iter_report_feature_rows(
         if end_date and row_date > end_date:
             continue
         if drop_future_evidence:
-            report = _remove_future_evidence(report, row_date)
+            report = _remove_future_evidence(report, row_date, cutoff_time, cutoff_timezone)
         yield feature_row_from_report(report, as_of_date=row_date)
 
 
@@ -85,6 +97,13 @@ def main() -> int:
         action="store_true",
         help="Do not drop evidence published after the row as_of_date",
     )
+    parser.add_argument(
+        "--keep-after-market-close",
+        action="store_true",
+        help="Do not drop same-day evidence published after market close",
+    )
+    parser.add_argument("--market-close-time", default="15:30", help="Market close cutoff time, HH:MM")
+    parser.add_argument("--market-timezone", default="Asia/Seoul", help="Timezone for market close cutoff")
     args = parser.parse_args()
 
     rows = list(
@@ -93,6 +112,8 @@ def main() -> int:
             start_date=_parse_date(args.start_date),
             end_date=_parse_date(args.end_date),
             drop_future_evidence=not args.keep_future_evidence,
+            cutoff_time=None if args.keep_after_market_close else args.market_close_time,
+            cutoff_timezone=args.market_timezone,
         )
     )
     output_path = Path(args.output)
