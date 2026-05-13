@@ -7,7 +7,9 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from datetime import date
+
+from fastapi import Depends, FastAPI, HTTPException, Query
 
 from analysis.models import OutlookReport
 from services.outlook import OutlookService
@@ -69,6 +71,16 @@ def health():
 @app.get("/outlook/stock/{code}", response_model=OutlookReport)
 def get_stock_outlook(
     code: str,
+    avg_price: float | None = Query(None, gt=0, description="Position average price (KRW)"),
+    quantity: int | None = Query(None, gt=0, description="Position share count"),
+    held_since: date | None = Query(None, description="Position open date (YYYY-MM-DD)"),
     service: OutlookService = Depends(get_outlook_service),
 ) -> OutlookReport:
-    return service.build_report(code)
+    if held_since is not None and held_since > date.today():
+        raise HTTPException(status_code=422, detail="held_since cannot be in the future")
+    return service.build_report(
+        code,
+        avg_price=avg_price,
+        quantity=quantity,
+        held_since=held_since.isoformat() if held_since else None,
+    )

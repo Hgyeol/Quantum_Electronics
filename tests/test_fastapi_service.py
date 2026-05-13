@@ -11,7 +11,15 @@ from web.main import app, get_outlook_service
 
 
 class FakeOutlookService:
-    def build_report(self, stock_code, stock_name=None):
+    def build_report(
+        self,
+        stock_code,
+        stock_name=None,
+        *,
+        avg_price=None,
+        quantity=None,
+        held_since=None,
+    ):
         quant_signals = [
             QuantSignal(
                 label="mock momentum",
@@ -129,6 +137,46 @@ class FastAPIServiceTests(unittest.TestCase):
         self.assertIsNotNone(stock)
         self.assertEqual(stock["stock_code"], "005930")
         self.assertEqual(stock["corp_name"], "삼성전자")
+
+    def test_position_query_params_attach_position_context(self):
+        class QuietQuantEngine:
+            def get_signals(self, stock_code, stock_name):
+                return [
+                    QuantSignal(
+                        label="mock momentum",
+                        direction="positive",
+                        score=1,
+                        value=1.0,
+                        api_used="mock",
+                    )
+                ]
+
+        app.dependency_overrides[get_outlook_service] = lambda: OutlookService(
+            quant_engine=QuietQuantEngine(),
+            price_quote_fn=lambda code: {"price": 13200, "w52_high": 16000, "w52_low": 9500},
+        )
+
+        response = self.client.get(
+            "/outlook/stock/005930",
+            params={"avg_price": 12660, "quantity": 2200, "held_since": "2024-03-15"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        ctx = response.json()["position_context"]
+        self.assertIsNotNone(ctx)
+        self.assertEqual(ctx["avg_price"], 12660)
+        self.assertEqual(ctx["quantity"], 2200)
+        self.assertEqual(ctx["current_price"], 13200)
+        self.assertEqual(ctx["unrealized_pnl_amount"], 1188000.0)
+        self.assertEqual(ctx["breakeven_required_pct"], 0)
+        self.assertIn("권유가 아님", ctx["disclaimer"])
+
+    def test_future_held_since_returns_422(self):
+        response = self.client.get(
+            "/outlook/stock/005930",
+            params={"avg_price": 1000, "quantity": 1, "held_since": "2099-01-01"},
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_outlook_service_skips_non_kospi_query_before_llm(self):
         class ExplodingQuantEngine:

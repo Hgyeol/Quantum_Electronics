@@ -119,6 +119,20 @@ The OpenAI Responses analyzer is wrapped by `CachedLLMAnalyzer`; set
 `OUTLOOK_LLM_CACHE_PATH=data/llm_cache.json` so both live collection and
 historical backfill share the same on-disk cache.
 
+## Decision-Support (PRD_의사결정보조.md)
+
+`/outlook/stock/{code}` accepts three optional query parameters
+(`avg_price`, `quantity`, `held_since`) for a user-held position. When all
+three are supplied, the response includes a `position_context` block with
+deterministic facts only (unrealized PnL, breakeven %, 52-week distances).
+Every response carries a fixed disclaimer making clear the block is *not*
+a buy/sell recommendation. See `PRD_의사결정보조.md` §4 for the phased plan
+covering scenario fields, comparison API, and supply-flow refinement.
+
+```bash
+curl "http://127.0.0.1:8000/outlook/stock/005930?avg_price=80000&quantity=10&held_since=2024-01-15"
+```
+
 ## Safety Constraints
 
 - Never commit API keys, KIS tokens, account numbers, or provider secrets.

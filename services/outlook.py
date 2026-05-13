@@ -9,6 +9,7 @@ from pathlib import Path
 
 from analysis.models import AnalysisError, OutlookReport
 from analysis.scoring import combine_signals
+from services.position import PriceQuoteFn, compute_position_context
 from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosures
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
@@ -30,9 +31,11 @@ class OutlookService:
         self,
         quant_engine: QuantEngine | None = None,
         ml_predictor: OutlookMLPredictor | None = None,
+        price_quote_fn: PriceQuoteFn | None = None,
     ):
         self.quant_engine = quant_engine or QuantEngine()
         self.ml_predictor = ml_predictor or load_predictor_from_env()
+        self.price_quote_fn = price_quote_fn
         self.llm_analyzer = (
             OpenAIResponsesAnalyzer()
             if os.getenv("OPENAI_API_KEY")
@@ -41,7 +44,15 @@ class OutlookService:
         if os.getenv("OUTLOOK_LLM_CACHE_PATH"):
             self.llm_analyzer = CachedLLMAnalyzer(self.llm_analyzer, os.environ["OUTLOOK_LLM_CACHE_PATH"])
 
-    def build_report(self, stock_code: str, stock_name: str | None = None) -> OutlookReport:
+    def build_report(
+        self,
+        stock_code: str,
+        stock_name: str | None = None,
+        *,
+        avg_price: float | None = None,
+        quantity: int | None = None,
+        held_since: str | None = None,
+    ) -> OutlookReport:
         stock = lookup_stock_master(stock_code)
         normalized_code = stock["stock_code"] if stock else stock_code.strip()
         display_name = stock_name or (stock["corp_name"] if stock else normalized_code)
@@ -137,6 +148,14 @@ class OutlookService:
             financial_signals=financial_signals,
         )
 
+        position_context = compute_position_context(
+            normalized_code,
+            avg_price=avg_price,
+            quantity=quantity,
+            held_since=held_since,
+            price_quote_fn=self.price_quote_fn,
+        )
+
         report = OutlookReport(
             stock_code=normalized_code,
             stock_name=stock_name,
@@ -145,6 +164,7 @@ class OutlookService:
             quant_signals=quant_signals,
             ai_signals=llm_result.signals,
             financial_signals=financial_signals,
+            position_context=position_context,
             evidence=evidence,
             errors=errors,
         )

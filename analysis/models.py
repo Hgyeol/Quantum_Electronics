@@ -91,6 +91,29 @@ class ScoreBreakdown(BaseModel):
         return self
 
 
+POSITION_DISCLAIMER = "정보 제공용 계산일 뿐 매수·매도 권유가 아님."
+
+
+class PositionContext(BaseModel):
+    """Deterministic decision-support facts about a user's stock position.
+
+    All fields are facts derived from inputs and live market data. The
+    service never advises (buy/sell/hold); see PRD_의사결정보조.md §5.4.
+    """
+
+    avg_price: float = Field(gt=0)
+    quantity: int = Field(gt=0)
+    held_since: datetime | None = None
+    current_price: float = Field(gt=0)
+    holding_days: int | None = Field(default=None, ge=0)
+    unrealized_pnl_amount: float
+    unrealized_pnl_pct: float
+    breakeven_required_pct: float = Field(ge=0)
+    distance_to_52w_low_pct: float | None = None
+    distance_to_52w_high_pct: float | None = None
+    disclaimer: str = POSITION_DISCLAIMER
+
+
 class OutlookReport(BaseModel):
     stock_code: str = Field(min_length=1)
     stock_name: str | None = None
@@ -102,6 +125,7 @@ class OutlookReport(BaseModel):
     financial_signals: list[FinancialSignal] = Field(default_factory=list)
     financial_interpretation: FinancialInterpretation | None = None
     ml_prediction: MLPrediction | None = None
+    position_context: PositionContext | None = None
     evidence: list[Evidence] = Field(default_factory=list)
     errors: list[AnalysisError] = Field(default_factory=list)
 
