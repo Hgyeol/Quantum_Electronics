@@ -142,6 +142,27 @@ swaps `OpenAIResponsesAnalyzer` for the locally-loaded Qwen adapter. The
 swap is fail-soft: any load/import failure logs a warning and the service
 falls back to OpenAI.
 
+## Frontend
+
+A Next.js (App Router) visualization lives at `/Users/gimhangyeol/졸작_프론트`
+(separate git repo). It renders the FastAPI response — score breakdown,
+quant/AI/financial signals, ML prediction, position context, evidence — in
+a Binance-inspired dark theme. Run it alongside the backend:
+
+```bash
+# Terminal 1 — backend
+uvicorn web.main:app --reload
+
+# Terminal 2 — frontend
+cd /Users/gimhangyeol/졸작_프론트
+npm run dev    # webpack mode (Turbopack panics on non-ASCII paths)
+# → http://localhost:3000
+```
+
+The backend now sets `Access-Control-Allow-Origin` for
+`http://localhost:3000` and `http://127.0.0.1:3000` by default; override with
+the `OUTLOOK_CORS_ORIGINS` env var (comma-separated).
+
 ## Decision-Support (PRD_의사결정보조.md)
 
 `/outlook/stock/{code}` accepts three optional query parameters

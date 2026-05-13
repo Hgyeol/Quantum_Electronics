@@ -10,9 +10,12 @@ from pathlib import Path
 from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from analysis.models import OutlookReport
 from services.outlook import OutlookService
+
+_DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 
 logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +59,18 @@ app = FastAPI(
     description="AI-assisted Korean stock investment outlook API",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+_origins = [
+    origin.strip()
+    for origin in os.getenv("OUTLOOK_CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_methods=["GET"],
+    allow_headers=["*"],
 )
 
 
