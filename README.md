@@ -119,6 +119,29 @@ The OpenAI Responses analyzer is wrapped by `CachedLLMAnalyzer`; set
 `OUTLOOK_LLM_CACHE_PATH=data/llm_cache.json` so both live collection and
 historical backfill share the same on-disk cache.
 
+## LLM Preference Learning (PRD_LLM_선호학습.md)
+
+`scripts/build_dpo_pairs.py` derives DPO training triples from the existing
+dataset: any (date, stock) row where the LLM judgment direction did not
+match the realized `next_day_return` becomes one `(prompt, chosen, rejected)`
+pair. The prompt is rebuilt with the same `build_evidence_prompt()` used at
+inference, so a Colab-trained LoRA adapter sees identical text in training
+and serving.
+
+```bash
+python scripts/build_dpo_pairs.py \
+    --dataset ml/artifacts/signal_learning_v1/ml_dataset.csv \
+    --reports data/outlook_reports.jsonl \
+    --output data/dpo_pairs.jsonl
+```
+
+Training runs on Colab (`notebooks/dpo_qwen_colab.ipynb`, free T4) against
+`Qwen/Qwen2.5-3B-Instruct` + LoRA. After download, point
+`OUTLOOK_LOCAL_LLM_ADAPTER_PATH=/path/to/adapter` and the outlook service
+swaps `OpenAIResponsesAnalyzer` for the locally-loaded Qwen adapter. The
+swap is fail-soft: any load/import failure logs a warning and the service
+falls back to OpenAI.
+
 ## Decision-Support (PRD_의사결정보조.md)
 
 `/outlook/stock/{code}` accepts three optional query parameters
