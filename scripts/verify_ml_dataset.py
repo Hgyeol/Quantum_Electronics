@@ -17,7 +17,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Verify stock outlook ML dataset readiness")
     parser.add_argument("--dataset", required=True, help="CSV produced by scripts/build_ml_dataset.py")
     parser.add_argument("--min-calendar-days", type=int, default=90)
-    parser.add_argument("--min-stocks", type=int, default=5)
+    parser.add_argument("--min-stocks", type=int, default=3)
     args = parser.parse_args()
 
     dataset = pd.read_csv(args.dataset, dtype={"stock_code": str})

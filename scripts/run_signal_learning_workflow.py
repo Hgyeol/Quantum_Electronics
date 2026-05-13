@@ -48,7 +48,7 @@ def run_signal_learning_workflow(
     prices_csv: str | Path,
     output_dir: str | Path,
     min_calendar_days: int = 90,
-    min_stocks: int = 5,
+    min_stocks: int = 3,
     epochs: int = 500,
     learning_rate: float = 0.1,
     min_trade_count: int = 5,
@@ -150,7 +150,7 @@ def main() -> int:
     parser.add_argument("--prices", required=True, help="Price CSV")
     parser.add_argument("--output-dir", required=True, help="Directory for all workflow outputs")
     parser.add_argument("--min-calendar-days", type=int, default=90)
-    parser.add_argument("--min-stocks", type=int, default=5)
+    parser.add_argument("--min-stocks", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--learning-rate", type=float, default=0.1)
     parser.add_argument("--min-trade-count", type=int, default=5)

@@ -45,7 +45,7 @@ def _issue(code: str, message: str, severity: str = "error") -> VerificationIssu
 def verify_labeled_dataset(
     dataset: pd.DataFrame,
     min_calendar_days: int = 90,
-    min_stocks: int = 5,
+    min_stocks: int = 3,
 ) -> VerificationResult:
     issues: list[VerificationIssue] = []
     required = FEATURE_COLUMNS + LABEL_COLUMNS

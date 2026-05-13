@@ -19,7 +19,7 @@ def build_launchd_plist(
     label: str = DEFAULT_LABEL,
     hour: int = 16,
     minute: int = 10,
-    stock_limit: int = 5,
+    stock_limit: int = 3,
     force_kis_token: bool = False,
 ) -> dict[str, Any]:
     command = [
@@ -59,7 +59,7 @@ def main() -> int:
     parser.add_argument("--label", default=DEFAULT_LABEL)
     parser.add_argument("--hour", default=16, type=int)
     parser.add_argument("--minute", default=10, type=int)
-    parser.add_argument("--stock-limit", default=5, type=int)
+    parser.add_argument("--stock-limit", default=3, type=int)
     parser.add_argument("--force-kis-token", action="store_true")
     parser.add_argument("--output", type=Path, help="Optional plist output path; stdout is used when omitted")
     args = parser.parse_args()

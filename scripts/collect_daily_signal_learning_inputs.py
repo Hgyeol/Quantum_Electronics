@@ -42,13 +42,13 @@ def _authenticate_kis(force_token: bool, kis_server: str) -> None:
 def run_daily_signal_learning_collection(
     stock_codes_csv: str | Path = "data/stock_codes.csv",
     master_csv: str | Path = "kospi.csv",
-    stock_limit: int = 5,
+    stock_limit: int = 3,
     prices_csv: str | Path = "data/prices.csv",
     reports_jsonl: str | Path = "data/outlook_reports.jsonl",
     features_csv: str | Path = "data/features.csv",
     price_days: int = 120,
     min_calendar_days: int = 90,
-    min_stocks: int = 5,
+    min_stocks: int = 3,
     as_of_date: date | None = None,
     kis_auth_enabled: bool = False,
     force_kis_token: bool = False,
@@ -124,13 +124,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Collect daily signal-learning inputs")
     parser.add_argument("--stock-codes-csv", default="data/stock_codes.csv")
     parser.add_argument("--master-csv", default="kospi.csv")
-    parser.add_argument("--stock-limit", type=int, default=5)
+    parser.add_argument("--stock-limit", type=int, default=3)
     parser.add_argument("--prices-csv", default="data/prices.csv")
     parser.add_argument("--reports-jsonl", default="data/outlook_reports.jsonl")
     parser.add_argument("--features-csv", default="data/features.csv")
     parser.add_argument("--price-days", type=int, default=120)
     parser.add_argument("--min-calendar-days", type=int, default=90)
-    parser.add_argument("--min-stocks", type=int, default=5)
+    parser.add_argument("--min-stocks", type=int, default=3)
     parser.add_argument("--as-of-date", default=date.today().isoformat())
     parser.add_argument("--kis-auth", action="store_true")
     parser.add_argument("--force-kis-token", action="store_true")

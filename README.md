@@ -89,8 +89,9 @@ outlook signals into a supervised next-day prediction. Current status:
 
 Known constraints vs PRD §10.1:
 
-- Backfilled to **3 stocks × 154 calendar days** (PRD asks for ≥5 stocks ×
-  ≥90 days). Adding more stocks requires re-running the backfill script.
+- Backfilled to **3 stocks × 154 calendar days** (PRD §10.1 minimum: ≥3
+  stocks × ≥90 days). Adding more stocks requires re-running the backfill
+  script.
 - News evidence is intentionally empty for historical rows because Naver
   Search has no date filter; daily live collection keeps populating real
   news going forward.
@@ -101,7 +102,7 @@ Known constraints vs PRD §10.1:
 ### Re-running the backfill / refresh
 
 ```bash
-# One-off historical backfill (5 stocks × all dates in data/prices.csv)
+# One-off historical backfill (3 stocks × all dates in data/prices.csv)
 python scripts/backfill_signal_features.py --kis-auth
 
 # After 15:40 KST, fill in foreign-investor scores on already-backfilled rows

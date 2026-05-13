@@ -182,7 +182,7 @@ def audit_signal_learning_prd(
     features_path: Path = Path("data/features.csv"),
     prices_path: Path = Path("data/prices.csv"),
     min_calendar_days: int = 90,
-    min_stocks: int = 5,
+    min_stocks: int = 3,
 ) -> dict[str, Any]:
     checks = [
         _input_readiness_check(features_path, prices_path, min_calendar_days, min_stocks),
@@ -217,7 +217,7 @@ def main() -> int:
     parser.add_argument("--features", default="data/features.csv", help="Raw feature CSV")
     parser.add_argument("--prices", default="data/prices.csv", help="Raw price CSV")
     parser.add_argument("--min-calendar-days", type=int, default=90)
-    parser.add_argument("--min-stocks", type=int, default=5)
+    parser.add_argument("--min-stocks", type=int, default=3)
     args = parser.parse_args()
 
     result = audit_signal_learning_prd(

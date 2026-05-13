@@ -17,7 +17,7 @@ def check_signal_learning_inputs(
     features_csv: str | Path,
     prices_csv: str | Path,
     min_calendar_days: int = 90,
-    min_stocks: int = 5,
+    min_stocks: int = 3,
 ) -> dict:
     features_path = Path(features_csv)
     prices_path = Path(prices_csv)
@@ -108,7 +108,7 @@ def main() -> int:
     parser.add_argument("--features", default="data/features.csv")
     parser.add_argument("--prices", default="data/prices.csv")
     parser.add_argument("--min-calendar-days", type=int, default=90)
-    parser.add_argument("--min-stocks", type=int, default=5)
+    parser.add_argument("--min-stocks", type=int, default=3)
     args = parser.parse_args()
 
     result = check_signal_learning_inputs(

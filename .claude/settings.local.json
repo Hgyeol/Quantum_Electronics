@@ -13,7 +13,8 @@
       "Bash(tee /tmp/backfill_full.log)",
       "Bash(awk -F',' 'NR>1 {print $2}' /Users/gimhangyeol/졸작/data/features.csv)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('audit ok:', d['ok']\\); print\\('failing checks:', [c['name'] for c in d['checks'] if not c['ok']]\\)\")"
     ]
   },
   "enableAllProjectMcpServers": true,
