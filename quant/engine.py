@@ -7,7 +7,7 @@ PRD §4 — 퀀트 엔진 (사용자 정의 규칙)
   #1 골든크로스 (MA5/MA20)          +2 / -2 / 0   tools/strategy/strategy/strategy_01
   #2 이격도 (MA20 대비 현재가 %)    +2 / -2 / 0   tools/strategy/strategy/strategy_05
   #3 모멘텀 (60일 수익률)           +1 / -1 / 0   tools/strategy/strategy/strategy_02
-  #4 외인 순매수 (3일 누적)         +2 / -2 / 0   tools/domestic_stock/inquire_investor
+  #4 외인 순매수 (3일 누적, 주)     +2 / -2 / 0   tools/domestic_stock/inquire_investor
   #5 거래량 급증 (20일 평균 대비)   +1 / -1 / 0   tools/strategy/core/data_fetcher
 
   최대 합산 범위: -8 ~ +8

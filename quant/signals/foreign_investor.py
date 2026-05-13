@@ -65,7 +65,7 @@ def get_foreign_investor_signal(
         value: 3일 누적 외국인 순매수수량
     """
     _neutral = QuantSignal(
-        label="외인 순매수 (3일 누적)",
+        label="외인 순매수 (3일 누적, 주)",
         direction="neutral",
         score=0,
         value=None,
@@ -89,7 +89,7 @@ def get_foreign_investor_signal(
 
     if net_qty > 0:
         return QuantSignal(
-            label="외인 순매수 (3일 누적)",
+            label="외인 순매수 (3일 누적, 주)",
             direction="positive",
             score=2,
             value=float(net_qty),
@@ -97,7 +97,7 @@ def get_foreign_investor_signal(
         )
     if net_qty < 0:
         return QuantSignal(
-            label="외인 순매수 (3일 누적)",
+            label="외인 순매수 (3일 누적, 주)",
             direction="negative",
             score=-2,
             value=float(net_qty),
@@ -105,7 +105,7 @@ def get_foreign_investor_signal(
         )
 
     return QuantSignal(
-        label="외인 순매수 (3일 누적)",
+        label="외인 순매수 (3일 누적, 주)",
         direction="neutral",
         score=0,
         value=float(net_qty),

@@ -160,7 +160,7 @@ def foreign_investor_signal_from_daily(
     lookback_days: int = 3,
 ) -> QuantSignal:
     """Sum of foreign net buying over the last `lookback_days` rows up to as_of_date."""
-    label = "외인 순매수 (3일 누적)"
+    label = "외인 순매수 (3일 누적, 주)"
     api = "investor_trade_by_stock_daily"
     if investor_daily is None or investor_daily.empty:
         return QuantSignal(label=label, direction="neutral", score=0, value=None, api_used=api)
