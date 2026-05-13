@@ -72,6 +72,51 @@ News collection searches by exact stock name plus Naver search operators, for ex
 - `disclosure/`: DART disclosure and financial statement helpers.
 - `news/`: news API and crawler modules.
 - `web/`: FastAPI application entry point.
+- `ml/`: feature schema, dataset/label builders, training, runtime predictor, and `historical.py` for PRD Phase-2 backfill.
+
+## Signal Learning Pipeline (PRD §2)
+
+`PRD_신호학습_백테스트.md` defines a four-phase pipeline that turns the daily
+outlook signals into a supervised next-day prediction. Current status:
+
+| Phase | Status | Artifact |
+|-------|--------|----------|
+| 1. Dataset + baseline | ✅ | `ml/artifacts/signal_learning_v1/ml_dataset.csv`, `baseline_metrics.json` |
+| 2. Historical feature generator | ✅ (quant + DART + LLM; news skipped) | `ml/historical.py`, `scripts/backfill_signal_features.py` |
+| 3. Logistic Regression learning | ✅ | `outlook_logistic_v1.json`, `outlook_logistic_v1.metrics.json` |
+| 4. FastAPI integration | ✅ via `OUTLOOK_ML_MODEL_PATH` | `web.main:/outlook/stock/{code}` includes `ml_prediction` |
+| 5. RL/DPO | deferred per PRD §6.3, §9 | — |
+
+Known constraints vs PRD §10.1:
+
+- Backfilled to **3 stocks × 154 calendar days** (PRD asks for ≥5 stocks ×
+  ≥90 days). Adding more stocks requires re-running the backfill script.
+- News evidence is intentionally empty for historical rows because Naver
+  Search has no date filter; daily live collection keeps populating real
+  news going forward.
+- `foreign_investor_score` is filled in by a separate post-15:40-KST refresh
+  (`scripts/refresh_foreign_investor.py`) because the KIS daily-investor
+  endpoint is rate-gated to after market close.
+
+### Re-running the backfill / refresh
+
+```bash
+# One-off historical backfill (5 stocks × all dates in data/prices.csv)
+python scripts/backfill_signal_features.py --kis-auth
+
+# After 15:40 KST, fill in foreign-investor scores on already-backfilled rows
+python scripts/refresh_foreign_investor.py
+
+# Rebuild dataset + baseline + model artifacts
+python scripts/run_signal_learning_workflow.py \
+    --features data/features.csv --prices data/prices.csv \
+    --output-dir ml/artifacts/signal_learning_v1 \
+    --min-calendar-days 90 --min-stocks 3 --min-selected-stock-count 3
+```
+
+The OpenAI Responses analyzer is wrapped by `CachedLLMAnalyzer`; set
+`OUTLOOK_LLM_CACHE_PATH=data/llm_cache.json` so both live collection and
+historical backfill share the same on-disk cache.
 
 ## Safety Constraints
 
