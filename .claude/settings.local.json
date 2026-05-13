@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "mcp__kis-code-assistant-mcp__search_domestic_stock_api",
-      "mcp__kis-code-assistant-mcp__search_overseas_stock_api"
+      "mcp__kis-code-assistant-mcp__search_overseas_stock_api",
+      "Bash(launchctl list *)",
+      "Bash(echo \"---exit: $?\")",
+      "Bash(python3 -c \"import sys, json; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\(d.get\\('generated_at'\\)\\)\")",
+      "Bash(awk -F',' 'NR>1 {print $1}' /Users/gimhangyeol/졸작/data/prices.csv)",
+      "Bash(.venv/bin/python *)",
+      "Bash(OPENAI_API_KEY=\"\" .venv/bin/python scripts/backfill_signal_features.py --stock-codes-csv data/stock_codes.csv --prices-csv data/prices.csv --features-csv /tmp/backfill_dryrun_features.csv --reports-jsonl /tmp/backfill_dryrun_reports.jsonl --llm-cache-path /tmp/backfill_dryrun_cache.json --max-dates-per-stock 3 --kis-auth)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(tee /tmp/backfill_full.log)",
+      "Bash(awk -F',' 'NR>1 {print $2}' /Users/gimhangyeol/졸작/data/features.csv)",
+      "Bash(git add *)"
     ]
   },
   "enableAllProjectMcpServers": true,
