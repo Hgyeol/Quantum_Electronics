@@ -1,7 +1,7 @@
 # Quantum Electronics — 인수인계 / 재시작 가이드
 
 **기준 시점**: 2026-05-14
-**마지막 사용자 작업**: DPO LoRA 어댑터 Colab 학습 → `ml/artifacts/llm_dpo_v1/`로 보관, 재부팅 대기
+**마지막 사용자 작업**: DPO LoRA 어댑터 로컬 인퍼런스 연결 완료 (MLX 4-bit Qwen2.5-3B + 변환 어댑터)
 
 ---
 
@@ -13,7 +13,7 @@
 | 프론트엔드 (Next.js) | ✅ 완성. 다만 ML Prediction 카드는 임시 숨김 |
 | `PRD_신호학습_백테스트.md` | ✅ 13/13 audit 통과 |
 | `PRD_의사결정보조.md` Phase 1 | ✅ position_context 노출 |
-| `PRD_LLM_선호학습.md` | 학습 완료 (LoRA 어댑터 있음), **인퍼런스 연결 보류** |
+| `PRD_LLM_선호학습.md` | ✅ 학습 + 로컬 인퍼런스 연결 완료 (MLX 4-bit + 변환 어댑터) |
 | launchd 자동 수집 (매일 16:10) | ✅ 등록됨 — `com.quantum-electronics.signal-learning-daily` |
 
 ---
@@ -117,7 +117,9 @@ npm run dev
 | `data/dpo_pairs.jsonl` | 204 | DPO 학습 페어 (misaligned 행만) |
 | `data/stock_codes.csv` | 3 | 095570, 006840, 282330 |
 | `ml/artifacts/signal_learning_v1/outlook_logistic_v1.json` | — | 학습된 Logistic Regression |
-| `ml/artifacts/llm_dpo_v1/adapter_*.{json,safetensors}` | — | **새로 받은 Qwen2.5-3B + LoRA 어댑터 (14 MB)** |
+| `ml/artifacts/llm_dpo_v1/adapter_*.{json,safetensors}` | — | Qwen2.5-3B + LoRA (HF PEFT 포맷, 보관용 원본 14 MB) |
+| `ml/artifacts/llm_dpo_v1_mlx/{adapter_config.json,adapters.safetensors}` | — | **MLX-LM 호환 변환본** — 실제 인퍼런스 경로 |
+| `~/.cache/huggingface/hub/models--mlx-community--Qwen2.5-3B-Instruct-4bit/` | — | 4-bit MLX base (~1.8 GB, 첫 호출 시 자동 다운로드) |
 
 ---
 
@@ -130,7 +132,8 @@ npm run dev
 | `OPENAI_API_KEY` | gpt-5.2 LLM 호출 | 설정됨 |
 | `OUTLOOK_ML_MODEL_PATH` | LR 모델 경로 | `ml/artifacts/signal_learning_v1/outlook_logistic_v1.json` |
 | `OUTLOOK_LLM_CACHE_PATH` | LLM 캐시 | `data/llm_cache.json` |
-| `OUTLOOK_LOCAL_LLM_ADAPTER_PATH` | DPO 어댑터 (선택) | **주석 처리됨**, 활성화 시 `ml/artifacts/llm_dpo_v1` |
+| `OUTLOOK_LOCAL_LLM_ADAPTER_PATH` | DPO 어댑터 (MLX) | **활성**, `ml/artifacts/llm_dpo_v1_mlx` |
+| `OUTLOOK_LOCAL_LLM_BASE` | MLX 4-bit base 모델 | 미설정 → 기본값 `mlx-community/Qwen2.5-3B-Instruct-4bit` |
 
 ---
 
@@ -141,11 +144,13 @@ npm run dev
 - 학습 universe 밖 종목(예: 현대차)에서 룰과 정반대 예측 발생
 - `page.tsx`에서 `MLPredictionCard` import + 렌더 블록을 다시 살리면 복구됨
 
-### 6.2 DPO LoRA 어댑터 — 인퍼런스 미연결
-- 로컬 Mac M1 8 GB RAM + 디스크 부족 (0.8 GB free)
-- base 모델(Qwen2.5-3B) ~6 GB + torch/transformers/peft ~1.5 GB 다운로드 필요
-- 디스크 정리하고 의존성 설치 후 `.env`의 `OUTLOOK_LOCAL_LLM_ADAPTER_PATH` 주석 해제 → uvicorn 재시작이면 자동 swap
-- 또는 Colab에서 추론 endpoint 띄우고 `llm/local_qwen_analyzer.py`를 HTTP 클라이언트로 개조
+### 6.2 DPO LoRA 어댑터 — MLX 인퍼런스 운영 메모
+- 8 GB RAM 제약: HF Transformers + bf16 base는 RAM 초과 → MLX 4-bit 경로로 우회
+- 어댑터 포맷: PEFT(`adapter_model.safetensors`) ↔ MLX(`adapters.safetensors`) 키/shape 다름.
+  `scripts/convert_peft_to_mlx_adapter.py`로 변환 (transpose + 키 매핑 + fp16 캐스팅)
+- 새 어댑터 학습 후엔 반드시 변환 스크립트를 다시 실행해 `_mlx` 디렉토리를 갱신해야 함
+- `web/main.py`의 `get_outlook_service`는 매 요청마다 `OutlookService`를 새로 만들어 모델을 재로딩한다 (~5초/요청 추가).
+  성능이 문제면 `@functools.lru_cache`로 싱글톤화 가능 (다중 워커 환경에선 워커별 1회 로딩)
 
 ### 6.3 외인 순매수 신호 — 백필 99/303 행이 0
 - KIS API의 15:40 KST 시간 제한 때문에 backfill 당시 0으로 들어감
@@ -195,6 +200,12 @@ curl -sS "http://127.0.0.1:8000/outlook/stock/$(python3 -c 'import urllib.parse;
 
 # 새 DPO 페어 만들기 (features 늘렸을 때)
 .venv/bin/python scripts/build_dpo_pairs.py
+
+# Colab에서 새 PEFT 어댑터 받으면 MLX 포맷으로 변환
+.venv/bin/python scripts/convert_peft_to_mlx_adapter.py
+
+# 로컬 Qwen 인퍼런스 스모크 (.env 그대로 사용, AISignal 출력)
+.venv/bin/python scripts/smoke_local_qwen.py
 ```
 
 ---
@@ -220,8 +231,8 @@ c3ec3e1 feat: add position_context query path for decision support (Phase 1)
 
 1. **외인 보강 1회 실행** (5분, 비용 0)
 2. **027410, 138930 backfill 재개** (1~2시간, OpenAI ~$5)
-3. **DPO 어댑터 로컬 인퍼런스** (디스크 정리 + torch 설치 후 1시간)
-4. **PRD #2 Phase 2 (entry_zones / stop_loss)** — 룰 기반, LLM·KIS 추가 호출 0
+3. **PRD #2 Phase 2 (entry_zones / stop_loss)** — 룰 기반, LLM·KIS 추가 호출 0
+4. **`OutlookService` 싱글톤화** — MLX 모델 매 요청 재로딩 제거
 5. **프론트 미커밋분 정리·커밋**
 
 ---

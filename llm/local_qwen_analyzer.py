@@ -1,15 +1,15 @@
 """Local Qwen + LoRA inference adapter for the outlook LLM signal.
 
-This module is the second half of `PRD_LLM_선호학습.md`: after the Colab
-notebook produces a LoRA adapter trained against `data/dpo_pairs.jsonl`,
-this analyzer loads the base Qwen2.5-3B-Instruct model plus the adapter
-and re-implements the `EvidenceAnalyzer` protocol so it is drop-in
-compatible with the existing `OutlookService`.
+Runs on Apple Silicon via MLX-LM with a 4-bit Qwen2.5-3B-Instruct base
+plus the DPO LoRA adapter produced by `notebooks/dpo_qwen_colab.ipynb`
+and converted with `scripts/convert_peft_to_mlx_adapter.py`. The
+implementation re-uses the `EvidenceAnalyzer` protocol so it slots into
+`OutlookService` without further changes.
 
-Heavy ML dependencies (`torch`, `transformers`, `peft`) are imported
-lazily so the rest of the project keeps importing on machines without
-them. Construction failures degrade to a documented exception that the
-caller can catch and fall back to the OpenAI analyzer.
+Heavy ML dependencies (`mlx`, `mlx_lm`) are imported lazily so the rest
+of the project keeps importing on machines without them. Construction
+failures degrade to a documented exception that the caller catches and
+falls back to the OpenAI analyzer.
 """
 
 from __future__ import annotations
@@ -30,21 +30,19 @@ class LocalQwenAdapterUnavailable(RuntimeError):
 
 
 class LocalQwenAnalyzer:
-    """`EvidenceAnalyzer` backed by a locally-loaded Qwen + LoRA adapter."""
+    """`EvidenceAnalyzer` backed by MLX-LM + a converted LoRA adapter."""
 
     def __init__(
         self,
         adapter_path: str | None = None,
         base_model: str | None = None,
         max_new_tokens: int = 512,
-        device: str | None = None,
     ):
         self.adapter_path = adapter_path or os.getenv("OUTLOOK_LOCAL_LLM_ADAPTER_PATH")
         self.base_model = base_model or os.getenv(
-            "OUTLOOK_LOCAL_LLM_BASE", "Qwen/Qwen2.5-3B-Instruct"
+            "OUTLOOK_LOCAL_LLM_BASE", "mlx-community/Qwen2.5-3B-Instruct-4bit"
         )
         self.max_new_tokens = max_new_tokens
-        self.device = device or os.getenv("OUTLOOK_LOCAL_LLM_DEVICE", "auto")
         if not self.adapter_path:
             raise LocalQwenAdapterUnavailable(
                 "OUTLOOK_LOCAL_LLM_ADAPTER_PATH is not configured."
@@ -53,23 +51,14 @@ class LocalQwenAnalyzer:
 
     def _load(self):
         try:
-            import torch  # noqa: F401
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-            from peft import PeftModel
+            from mlx_lm import load
         except ImportError as exc:
             raise LocalQwenAdapterUnavailable(
-                f"transformers/peft/torch not installed: {exc}"
+                f"mlx_lm not installed: {exc}"
             ) from exc
 
         try:
-            tokenizer = AutoTokenizer.from_pretrained(self.base_model)
-            base = AutoModelForCausalLM.from_pretrained(
-                self.base_model,
-                device_map=self.device,
-                torch_dtype="auto",
-            )
-            model = PeftModel.from_pretrained(base, self.adapter_path)
-            model.eval()
+            model, tokenizer = load(self.base_model, adapter_path=self.adapter_path)
         except Exception as exc:
             raise LocalQwenAdapterUnavailable(
                 f"failed to load Qwen base + LoRA adapter: {exc}"
@@ -77,7 +66,7 @@ class LocalQwenAnalyzer:
         return tokenizer, model
 
     def _generate(self, prompt: str) -> str:
-        import torch
+        from mlx_lm import generate
 
         messages = [{"role": "user", "content": prompt}]
         chat_input = self._tokenizer.apply_chat_template(
@@ -85,17 +74,13 @@ class LocalQwenAnalyzer:
             tokenize=False,
             add_generation_prompt=True,
         )
-        inputs = self._tokenizer(chat_input, return_tensors="pt").to(self._model.device)
-        with torch.no_grad():
-            output_ids = self._model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=False,
-                temperature=0.0,
-                pad_token_id=self._tokenizer.eos_token_id,
-            )
-        new_tokens = output_ids[0, inputs["input_ids"].shape[-1]:]
-        return self._tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        return generate(
+            self._model,
+            self._tokenizer,
+            prompt=chat_input,
+            max_tokens=self.max_new_tokens,
+            verbose=False,
+        ).strip()
 
     def analyze_evidence(self, evidence: list[Evidence]):
         from llm.analyzer import LLMAnalysisResult
