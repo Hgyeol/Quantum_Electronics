@@ -32,8 +32,12 @@ logger = logging.getLogger(__name__)
 # 전략 인스턴스 (모듈 로드 시 1회 생성)
 # ──────────────────────────────────────────────────────────────
 _golden_cross = GoldenCrossStrategy(short_period=5, long_period=20)
-_disparity    = DisparityStrategy(period=20, oversold_threshold=90.0, overbought_threshold=110.0)
-_momentum     = MomentumStrategy(lookback_days=60, buy_threshold=0.30, sell_threshold=-0.20)
+# Disparity thresholds widened so routine swings inside an uptrend are not
+# flagged as overbought. Outside [85, 120] still triggers mean-reversion.
+_disparity    = DisparityStrategy(period=20, oversold_threshold=85.0, overbought_threshold=120.0)
+# Momentum thresholds halved to ±10% so sustained uptrends register a signal
+# instead of waiting for a >30% breakout.
+_momentum     = MomentumStrategy(lookback_days=60, buy_threshold=0.10, sell_threshold=-0.10)
 
 # StrategyResult.raw_signal → direction 매핑
 _DIRECTION = {Action.BUY: "positive", Action.SELL: "negative", Action.HOLD: "neutral"}
@@ -73,8 +77,27 @@ def _signal_from_strategy(
 
 
 def _golden_cross_signal(stock_code: str, stock_name: str) -> QuantSignal:
+    """Golden/dead cross event = ±2, sustained MA5 vs MA20 state = ±1."""
+    label = "골든크로스 (MA5/MA20)"
+    api = "inquire_daily_itemchartprice"
     result = _golden_cross.generate_result(stock_code, stock_name)
-    return _signal_from_strategy(result, "골든크로스 (MA5/MA20)", buy_score=2, value_key="ma_short")
+    metrics = result.metrics or {}
+    curr_short = metrics.get("ma_short")
+    curr_long = metrics.get("ma_long")
+    value = float(curr_short) if curr_short is not None else None
+
+    if result.raw_signal == Action.BUY:
+        return QuantSignal(label=label, direction="positive", score=2, value=value, api_used=api)
+    if result.raw_signal == Action.SELL:
+        return QuantSignal(label=label, direction="negative", score=-2, value=value, api_used=api)
+
+    # HOLD path — reflect the current trend state instead of always 0.
+    if curr_short is not None and curr_long is not None:
+        if curr_short > curr_long:
+            return QuantSignal(label=label, direction="positive", score=1, value=value, api_used=api)
+        if curr_short < curr_long:
+            return QuantSignal(label=label, direction="negative", score=-1, value=value, api_used=api)
+    return QuantSignal(label=label, direction="neutral", score=0, value=value, api_used=api)
 
 
 def _disparity_signal(stock_code: str, stock_name: str) -> QuantSignal:

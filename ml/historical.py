@@ -70,8 +70,9 @@ def _quant_neutral(label: str, api: str = "inquire_daily_itemchartprice") -> Qua
 
 
 def golden_cross_signal_from_prices(prices: pd.DataFrame) -> QuantSignal:
-    """MA5/MA20 cross direction at the latest available row."""
+    """Cross event = ±2, sustained MA5 vs MA20 state = ±1, else neutral."""
     label = "골든크로스 (MA5/MA20)"
+    api = "inquire_daily_itemchartprice"
     if prices.empty or len(prices) < 21:
         return _quant_neutral(label)
 
@@ -82,20 +83,16 @@ def golden_cross_signal_from_prices(prices: pd.DataFrame) -> QuantSignal:
     if pd.isna(prev_short) or pd.isna(prev_long):
         return _quant_neutral(label)
 
+    value = round(float(curr_short), 2)
     if prev_short < prev_long and curr_short > curr_long:
-        return QuantSignal(
-            label=label, direction="positive", score=2,
-            value=round(float(curr_short), 2), api_used="inquire_daily_itemchartprice",
-        )
+        return QuantSignal(label=label, direction="positive", score=2, value=value, api_used=api)
     if prev_short > prev_long and curr_short < curr_long:
-        return QuantSignal(
-            label=label, direction="negative", score=-2,
-            value=round(float(curr_short), 2), api_used="inquire_daily_itemchartprice",
-        )
-    return QuantSignal(
-        label=label, direction="neutral", score=0,
-        value=round(float(curr_short), 2), api_used="inquire_daily_itemchartprice",
-    )
+        return QuantSignal(label=label, direction="negative", score=-2, value=value, api_used=api)
+    if curr_short > curr_long:
+        return QuantSignal(label=label, direction="positive", score=1, value=value, api_used=api)
+    if curr_short < curr_long:
+        return QuantSignal(label=label, direction="negative", score=-1, value=value, api_used=api)
+    return QuantSignal(label=label, direction="neutral", score=0, value=value, api_used=api)
 
 
 def disparity_signal_from_prices(prices: pd.DataFrame) -> QuantSignal:
@@ -110,9 +107,11 @@ def disparity_signal_from_prices(prices: pd.DataFrame) -> QuantSignal:
         return _quant_neutral(label)
 
     disparity = round(float(close / ma20 * 100), 2)
-    if disparity < 90.0:
+    # Widened band: only call SELL beyond 120% / BUY below 85% to avoid
+    # flagging routine swings inside an uptrend as overbought.
+    if disparity < 85.0:
         return QuantSignal(label=label, direction="positive", score=2, value=disparity, api_used="inquire_daily_itemchartprice")
-    if disparity > 110.0:
+    if disparity > 120.0:
         return QuantSignal(label=label, direction="negative", score=-2, value=disparity, api_used="inquire_daily_itemchartprice")
     return QuantSignal(label=label, direction="neutral", score=0, value=disparity, api_used="inquire_daily_itemchartprice")
 
@@ -129,9 +128,10 @@ def momentum_signal_from_prices(prices: pd.DataFrame, lookback_days: int = 60) -
         return _quant_neutral(label)
 
     ret = round(float((curr - base) / base), 4)
-    if ret >= 0.30:
+    # Lowered thresholds to ±10% so sustained uptrends register a signal.
+    if ret >= 0.10:
         return QuantSignal(label=label, direction="positive", score=1, value=ret, api_used="inquire_daily_itemchartprice")
-    if ret <= -0.20:
+    if ret <= -0.10:
         return QuantSignal(label=label, direction="negative", score=-1, value=ret, api_used="inquire_daily_itemchartprice")
     return QuantSignal(label=label, direction="neutral", score=0, value=ret, api_used="inquire_daily_itemchartprice")
 

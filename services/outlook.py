@@ -177,7 +177,7 @@ class OutlookService:
 
         report = OutlookReport(
             stock_code=normalized_code,
-            stock_name=stock_name,
+            stock_name=stock_name or (stock["corp_name"] if stock else None),
             summary=f"{display_name} outlook is {score.direction} with total score {score.total_score}.",
             score=score,
             quant_signals=quant_signals,
