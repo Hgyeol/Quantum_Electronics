@@ -88,6 +88,17 @@ def _latest_receipt_datetime(statements: pd.DataFrame) -> datetime | None:
     return max(dates) if dates else None
 
 
+def _latest_receipt_no(statements: pd.DataFrame) -> str | None:
+    if statements.empty or "rcept_no" not in statements:
+        return None
+    candidates = [
+        str(value)
+        for value in statements["rcept_no"].dropna()
+        if str(value).isdigit() and len(str(value)) >= 14
+    ]
+    return max(candidates) if candidates else None
+
+
 def calculate_financial_metrics(statements: pd.DataFrame) -> dict[str, float | None]:
     revenue = _latest_value(statements, ACCOUNT_ALIASES["revenue"])
     prev_revenue = _previous_value(statements, ACCOUNT_ALIASES["revenue"])
@@ -168,12 +179,51 @@ def build_financial_signals(metrics: dict[str, float | None]) -> list[FinancialS
         )
 
     return [
-        _signal("매출 성장률", "revenue_growth", metrics.get("revenue_growth"), positive_at=5.0, negative_at=-5.0, score=1),
-        _signal("영업이익률", "operating_margin", metrics.get("operating_margin"), positive_at=10.0, negative_at=3.0, score=2),
+        _build_revenue_growth_signal(metrics.get("revenue_growth")),
+        _signal("영업이익률", "operating_margin", metrics.get("operating_margin"), positive_at=10.0, negative_at=3.0, score=1),
         _signal("부채비율", "debt_ratio", metrics.get("debt_ratio"), positive_at=100.0, negative_at=200.0, lower_is_positive=True, score=2),
         _signal("ROE", "roe", metrics.get("roe"), positive_at=10.0, negative_at=0.0, score=2),
         net_income_signal,
     ]
+
+
+# DART 단일계정 API는 분기/반기/연간 보고서를 섞어 돌려주는데, 현재 비교 로직은
+# bsns_year로만 정렬하므로 4분기 단독 vs 연간 누적 같은 기간 불일치 비교가 가능.
+# 같은 기간끼리 매칭하는 정밀 fix 전까지의 임시 안전망: |매출 성장률| > 50%면
+# 점수에 반영하지 않고 reason으로 점검 사실만 노출.
+_REVENUE_GROWTH_SANITY_BOUND = 50.0
+
+
+def _build_revenue_growth_signal(value: float | None) -> FinancialSignal:
+    if value is None:
+        return FinancialSignal(
+            label="매출 성장률",
+            metric="revenue_growth",
+            value=None,
+            direction="neutral",
+            score=0,
+            reason="metric unavailable",
+        )
+    if abs(value) > _REVENUE_GROWTH_SANITY_BOUND:
+        return FinancialSignal(
+            label="매출 성장률",
+            metric="revenue_growth",
+            value=value,
+            direction="neutral",
+            score=0,
+            reason="보고기간 매칭 점검 중 (분기/연간 혼합 추정)",
+        )
+    if value >= 5.0:
+        return FinancialSignal(
+            label="매출 성장률", metric="revenue_growth", value=value, direction="positive", score=1
+        )
+    if value <= -5.0:
+        return FinancialSignal(
+            label="매출 성장률", metric="revenue_growth", value=value, direction="negative", score=-1
+        )
+    return FinancialSignal(
+        label="매출 성장률", metric="revenue_growth", value=value, direction="neutral", score=0
+    )
 
 
 def analyze_financials(statements: pd.DataFrame) -> FinancialMetricResult:
@@ -190,6 +240,12 @@ def analyze_financials(statements: pd.DataFrame) -> FinancialMetricResult:
         )
 
     metrics = calculate_financial_metrics(statements)
+    latest_rcept_no = _latest_receipt_no(statements)
+    dart_url = (
+        f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest_rcept_no}"
+        if latest_rcept_no
+        else None
+    )
     evidence = [
         Evidence(
             evidence_id="financial-statements",
@@ -197,7 +253,11 @@ def analyze_financials(statements: pd.DataFrame) -> FinancialMetricResult:
             source="DART",
             title="DART single-account financial statements",
             published_at=_latest_receipt_datetime(statements),
-            metadata={"rows": int(len(statements))},
+            url=dart_url,
+            metadata={
+                "rows": int(len(statements)),
+                "latest_rcept_no": latest_rcept_no,
+            },
         )
     ]
     signals = [

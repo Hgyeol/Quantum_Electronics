@@ -91,6 +91,24 @@ class ScoreBreakdown(BaseModel):
         return self
 
 
+class MarketQuote(BaseModel):
+    """Live (or latest available) market quote for the stock.
+
+    All values come from a single KIS `inquire-price` call. Optional so the
+    field can be omitted when the upstream API fails — the rest of the
+    report stays usable.
+    """
+
+    price: float = Field(gt=0, description="현재가")
+    change: float = Field(description="전일 대비 (절대값)")
+    change_rate: float = Field(description="전일 대비 등락률 (%)")
+    high: float | None = Field(default=None, description="당일 고가")
+    low: float | None = Field(default=None, description="당일 저가")
+    volume: int | None = Field(default=None, ge=0, description="누적 거래량")
+    w52_high: float | None = Field(default=None, description="52주 최고가")
+    w52_low: float | None = Field(default=None, description="52주 최저가")
+
+
 POSITION_DISCLAIMER = "정보 제공용 계산일 뿐 매수·매도 권유가 아님."
 
 
@@ -126,6 +144,7 @@ class OutlookReport(BaseModel):
     financial_interpretation: FinancialInterpretation | None = None
     ml_prediction: MLPrediction | None = None
     position_context: PositionContext | None = None
+    market_quote: MarketQuote | None = None
     evidence: list[Evidence] = Field(default_factory=list)
     errors: list[AnalysisError] = Field(default_factory=list)
 

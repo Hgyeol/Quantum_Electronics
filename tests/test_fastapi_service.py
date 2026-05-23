@@ -1,9 +1,12 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from analysis.models import OutlookReport
+from analysis.models import AISignal, Evidence, OutlookReport
 from analysis.scoring import combine_signals
+from llm.analyzer import LLMAnalysisResult
 from ml.prediction import MLFeatureContribution, MLPrediction
 from quant.models import QuantSignal
 from services.outlook import OutlookService, lookup_dart_stock_mapping, lookup_stock_master
@@ -190,6 +193,71 @@ class FastAPIServiceTests(unittest.TestCase):
         self.assertEqual(report.ai_signals, [])
         self.assertEqual(report.evidence, [])
         self.assertEqual(report.errors[0].code, "not_kospi_or_not_found")
+
+    def test_llm_evidence_excludes_quant_and_market_data(self):
+        class QuietQuantEngine:
+            def get_signals(self, stock_code, stock_name):
+                return [
+                    QuantSignal(
+                        label="거래량 급증 (20일 평균 대비)",
+                        direction="positive",
+                        score=1,
+                        value=2.3,
+                        api_used="mock",
+                    )
+                ]
+
+        class CapturingLLM:
+            def __init__(self):
+                self.evidence = None
+
+            def analyze_evidence(self, evidence):
+                self.evidence = list(evidence)
+                return LLMAnalysisResult(
+                    signals=[
+                        AISignal(
+                            label="뉴스·공시",
+                            direction="positive",
+                            score=1,
+                            summary="뉴스에 명시된 신사업 기대가 부각됐다.",
+                            evidence_ids=["news-1"],
+                            confidence=0.8,
+                        )
+                    ]
+                )
+
+        llm = CapturingLLM()
+        service = OutlookService(
+            quant_engine=QuietQuantEngine(),
+            price_quote_fn=lambda code: {
+                "price": 13200,
+                "change": 1200,
+                "change_rate": 10.0,
+                "w52_high": 13200,
+                "w52_low": 9500,
+            },
+        )
+        service.llm_analyzer = llm
+
+        news_evidence = Evidence(
+            evidence_id="news-1",
+            kind="news",
+            source="Naver News",
+            title="로봇 신사업 기대",
+            content="휴머노이드 로봇용 액츄에이터 양산체제 구축 계획이 언급됐다.",
+        )
+
+        with patch("services.outlook.fetch_kis_news_titles", return_value=SimpleNamespace(titles=[], errors=[])), \
+            patch("services.outlook.search_naver_news_by_titles", return_value=SimpleNamespace(evidence=[], errors=[])), \
+            patch("services.outlook.search_naver_news", return_value=SimpleNamespace(evidence=[news_evidence], errors=[])), \
+            patch("services.outlook.lookup_corp_code", return_value=None):
+            report = service.build_report("005930")
+
+        self.assertEqual([item.kind for item in llm.evidence], ["news"])
+        self.assertNotIn("market", [item.kind for item in report.evidence])
+        self.assertNotIn("quant", [item.kind for item in report.evidence])
+        self.assertIsNotNone(report.market_quote)
+        self.assertEqual(report.quant_signals[0].label, "거래량 급증 (20일 평균 대비)")
 
 
 if __name__ == "__main__":

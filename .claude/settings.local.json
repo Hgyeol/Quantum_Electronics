@@ -68,7 +68,12 @@
       "Bash(time curl -sS \"http://127.0.0.1:8000/outlook/stock/005930\" -o /tmp/outlook_005930.json)",
       "Read(//tmp/**)",
       "Read(//private/tmp/**)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(xargs kill)",
+      "Bash(curl -sS \"http://127.0.0.1:8000/outlook/stock/005930\" -o /tmp/outlook_quote.json -w '%{http_code} %{time_total}s\\\\n')",
+      "Bash(npx --no-install tsc --noEmit)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(curl *)"
     ]
   },
   "enableAllProjectMcpServers": true,

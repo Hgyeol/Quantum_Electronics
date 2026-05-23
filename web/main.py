@@ -10,10 +10,12 @@ from pathlib import Path
 from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from analysis.models import OutlookReport
 from services.outlook import OutlookService
+from services.technical_indicators import calculate_indicators, list_indicator_definitions
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 
@@ -83,6 +85,12 @@ def health():
     return {"status": "ok", "service": "quantum-electronics"}
 
 
+@app.get("/", response_class=HTMLResponse)
+def indicator_frontend():
+    index_path = _PROJECT_ROOT / "web" / "static" / "indicators.html"
+    return HTMLResponse(index_path.read_text(encoding="utf-8"))
+
+
 @app.get("/outlook/stock/{code}", response_model=OutlookReport)
 def get_stock_outlook(
     code: str,
@@ -99,3 +107,18 @@ def get_stock_outlook(
         quantity=quantity,
         held_since=held_since.isoformat() if held_since else None,
     )
+
+
+@app.get("/technical/indicators")
+def get_technical_indicators():
+    return {"indicators": list_indicator_definitions()}
+
+
+@app.get("/technical/indicators/{code}")
+def get_stock_technical_indicators(
+    code: str,
+    ids: str | None = Query(None, description="Comma-separated indicator ids. Defaults to all."),
+    days: int = Query(260, ge=30, le=1000, description="Daily candle lookback window."),
+):
+    indicator_ids = [item.strip() for item in ids.split(",") if item.strip()] if ids else None
+    return calculate_indicators(code, indicator_ids=indicator_ids, days=days)

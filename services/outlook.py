@@ -7,9 +7,9 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from analysis.models import AnalysisError, OutlookReport
+from analysis.models import AnalysisError, MarketQuote, OutlookReport
 from analysis.scoring import combine_signals
-from services.position import PriceQuoteFn, compute_position_context
+from services.position import PriceQuoteFn, _kis_current_price_quote, compute_position_context
 from disclosure.disclosure_api import enrich_disclosure_texts, search_disclosures
 from disclosure.financial_statement_single_account_api import fetch_all_reports_last_n_years
 from financial.metrics import analyze_financials
@@ -158,6 +158,10 @@ class OutlookService:
                 )
             )
 
+        fetcher = self.price_quote_fn or _kis_current_price_quote
+        quote_dict = fetcher(normalized_code)
+        market_quote = _build_market_quote(quote_dict)
+
         llm_result = self.llm_analyzer.analyze_evidence(evidence)
         errors.extend(llm_result.errors)
 
@@ -172,7 +176,7 @@ class OutlookService:
             avg_price=avg_price,
             quantity=quantity,
             held_since=held_since,
-            price_quote_fn=self.price_quote_fn,
+            price_quote_fn=lambda _code, _q=quote_dict: _q,
         )
 
         report = OutlookReport(
@@ -183,6 +187,7 @@ class OutlookService:
             quant_signals=quant_signals,
             ai_signals=llm_result.signals,
             financial_signals=financial_signals,
+            market_quote=market_quote,
             position_context=position_context,
             evidence=evidence,
             errors=errors,
@@ -218,6 +223,55 @@ class OutlookService:
             )
             return report.model_copy(update={"errors": errors})
         return report.model_copy(update={"ml_prediction": prediction, "errors": errors})
+
+
+def _build_market_quote(quote: dict | None) -> MarketQuote | None:
+    if not quote:
+        return None
+    try:
+        price = float(quote.get("price") or 0)
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+
+    def _opt_float(key: str) -> float | None:
+        raw = quote.get(key)
+        if raw is None:
+            return None
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    def _opt_int(key: str) -> int | None:
+        raw = quote.get(key)
+        if raw is None:
+            return None
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if value >= 0 else None
+
+    try:
+        change = float(quote.get("change") or 0)
+        change_rate = float(quote.get("change_rate") or 0)
+    except (TypeError, ValueError):
+        change = 0.0
+        change_rate = 0.0
+
+    return MarketQuote(
+        price=price,
+        change=change,
+        change_rate=change_rate,
+        high=_opt_float("high"),
+        low=_opt_float("low"),
+        volume=_opt_int("volume"),
+        w52_high=_opt_float("w52_high"),
+        w52_low=_opt_float("w52_low"),
+    )
 
 
 def _read_csv_rows(csv_path: Path, encodings: tuple[str, ...] = ("utf-8-sig", "cp949", "euc-kr")):
