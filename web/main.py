@@ -14,6 +14,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from analysis.models import OutlookReport
+from chart.analyzer import analyze_chart
+from chart.models import ChartAnalysis
 from services.outlook import OutlookService
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 
@@ -107,6 +109,28 @@ def get_stock_outlook(
         quantity=quantity,
         held_since=held_since.isoformat() if held_since else None,
     )
+
+
+@app.get("/chart/{code}", response_model=ChartAnalysis)
+def get_chart_analysis(
+    code: str,
+    days: int = Query(120, ge=60, le=365, description="분석 기간 (거래일 기준)"),
+):
+    """종목 차트 분석 — 지지/저항 레벨, RSI/MACD/볼린저밴드, 진입·이탈 시그널"""
+    from services.outlook import lookup_stock_master
+
+    stock_name = None
+    master = lookup_stock_master(code)
+    if master:
+        stock_name = master.get("corp_name")
+
+    try:
+        return analyze_chart(stock_code=code, stock_name=stock_name, period_days=days)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.exception("chart analysis failed for %s", code)
+        raise HTTPException(status_code=500, detail=f"차트 분석 오류: {exc}")
 
 
 @app.get("/technical/indicators")

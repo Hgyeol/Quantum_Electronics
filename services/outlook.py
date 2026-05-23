@@ -27,23 +27,6 @@ _KOSPI_CSV = _PROJECT_ROOT / "disclosure" / "kospi.csv"
 
 
 def _select_llm_analyzer():
-    """Pick LocalQwen if an adapter is configured, else OpenAI, else Disabled.
-
-    Failures of the local stack fall through silently so the service stays
-    usable on machines without torch/transformers.
-    """
-    import logging as _logging
-
-    log = _logging.getLogger(__name__)
-
-    if os.getenv("OUTLOOK_LOCAL_LLM_ADAPTER_PATH"):
-        try:
-            from llm.local_qwen_analyzer import LocalQwenAnalyzer
-
-            return LocalQwenAnalyzer()
-        except Exception as exc:  # noqa: BLE001 — fall back regardless of cause
-            log.warning("LocalQwenAnalyzer init failed, falling back: %s", exc)
-
     if os.getenv("OPENAI_API_KEY"):
         return OpenAIResponsesAnalyzer()
     return DisabledLLMAnalyzer()
