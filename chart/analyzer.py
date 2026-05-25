@@ -10,7 +10,7 @@ import pandas as pd
 
 from chart.indicators import calc_bollinger_bands, calc_macd, calc_rsi, calc_stochastic
 from chart.levels import detect_levels
-from chart.models import ChartAnalysis, EntryExitSignal, TechnicalIndicators
+from chart.models import ChartAnalysis, EntryExitSignal, OHLCVBar, SupportResistanceLevel, TechnicalIndicators
 
 _HERE = os.path.dirname(__file__)
 _ROOT = os.path.abspath(os.path.join(_HERE, ".."))
@@ -34,7 +34,6 @@ def _fetch_prices(stock_code: str, days: int = 120) -> pd.DataFrame:
     except Exception as exc:
         logger.debug("data_fetcher unavailable: %s", exc)
 
-    # fallback: use inquire_daily_itemchartprice directly
     try:
         from datetime import timedelta
         from inquire_daily_itemchartprice import inquire_daily_itemchartprice
@@ -76,7 +75,7 @@ def _bb_position(price: float, upper: float, lower: float, middle: float) -> str
     band_width = upper - lower
     if band_width == 0:
         return "middle"
-    pos = (price - lower) / band_width  # 0=lower, 1=upper
+    pos = (price - lower) / band_width
     if price > upper:
         return "above_upper"
     if pos > 0.80:
@@ -86,6 +85,62 @@ def _bb_position(price: float, upper: float, lower: float, middle: float) -> str
     if price < lower:
         return "below_lower"
     return "middle"
+
+
+def _fill_missing_levels(
+    supports: list[SupportResistanceLevel],
+    resistances: list[SupportResistanceLevel],
+    current_price: float,
+    close: pd.Series,
+    bb_upper: float | None,
+    bb_lower: float | None,
+) -> tuple[list[SupportResistanceLevel], list[SupportResistanceLevel]]:
+    """MA20/MA60 및 볼린저밴드로 스윙포인트 레벨 보충."""
+
+    ma20 = float(close.rolling(20).mean().iloc[-1])
+    ma60 = float(close.rolling(60).mean().iloc[-1]) if len(close) >= 60 else None
+
+    # 지지선 보충 (현재가 아래)
+    if len(supports) == 0:
+        if ma20 < current_price * 1.0:
+            supports.append(SupportResistanceLevel(
+                price=round(ma20, 0),
+                level_type="support",
+                strength="medium",
+                touch_count=0,
+                source="ma20",
+            ))
+        if ma60 and ma60 < current_price * 1.0 and abs(ma60 - ma20) / current_price > 0.02:
+            supports.append(SupportResistanceLevel(
+                price=round(ma60, 0),
+                level_type="support",
+                strength="medium",
+                touch_count=0,
+                source="ma60",
+            ))
+        if bb_lower and bb_lower < current_price:
+            supports.append(SupportResistanceLevel(
+                price=round(bb_lower, 0),
+                level_type="support",
+                strength="weak",
+                touch_count=0,
+                source="bb_lower",
+            ))
+        supports = sorted(supports, key=lambda x: x.price, reverse=True)[:3]
+
+    # 저항선 보충 (현재가 위)
+    if len(resistances) == 0:
+        if bb_upper and bb_upper > current_price:
+            resistances.append(SupportResistanceLevel(
+                price=round(bb_upper, 0),
+                level_type="resistance",
+                strength="weak",
+                touch_count=0,
+                source="bb_upper",
+            ))
+        resistances = sorted(resistances, key=lambda x: x.price)[:3]
+
+    return supports, resistances
 
 
 def _build_signal(
@@ -99,7 +154,6 @@ def _build_signal(
     supports: list,
     resistances: list,
 ) -> EntryExitSignal:
-    """Combine indicators into a single entry/exit recommendation."""
     buy_score = 0
     sell_score = 0
     reasons: list[str] = []
@@ -108,48 +162,48 @@ def _build_signal(
     if rsi is not None:
         if rsi < 30:
             buy_score += 2
-            reasons.append(f"RSI {rsi:.1f} — 과매도 구간 (매수 신호)")
+            reasons.append(f"RSI {rsi:.1f} — 단기 급락으로 반등 가능성 높음")
         elif rsi < 40:
             buy_score += 1
-            reasons.append(f"RSI {rsi:.1f} — 저평가 구간")
+            reasons.append(f"RSI {rsi:.1f} — 저평가 구간, 매수 검토 가능")
         elif rsi > 70:
             sell_score += 2
-            reasons.append(f"RSI {rsi:.1f} — 과매수 구간 (매도 신호)")
+            reasons.append(f"RSI {rsi:.1f} — 단기 과열, 차익 실현 고려")
         elif rsi > 60:
             sell_score += 1
-            reasons.append(f"RSI {rsi:.1f} — 고평가 구간")
+            reasons.append(f"RSI {rsi:.1f} — 상단 접근 중, 신규 매수 부담")
 
     # MACD
     if macd_crossover == "bullish":
         buy_score += 2
-        reasons.append("MACD 골든크로스 (상승 전환)")
+        reasons.append("추세 전환 신호 — 하락에서 상승으로 반전 감지")
     elif macd_crossover == "bearish":
         sell_score += 2
-        reasons.append("MACD 데드크로스 (하락 전환)")
+        reasons.append("추세 전환 신호 — 상승에서 하락으로 반전 감지")
     elif macd_hist is not None:
         if macd_hist > 0:
             buy_score += 1
-            reasons.append("MACD 히스토그램 양수 (상승 모멘텀)")
+            reasons.append("상승 모멘텀 유지 중")
         else:
             sell_score += 1
-            reasons.append("MACD 히스토그램 음수 (하락 모멘텀)")
+            reasons.append("하락 모멘텀 지속 중")
 
     # Bollinger Bands
     if bb_pos in ("below_lower", "near_lower"):
         buy_score += 1
-        reasons.append("볼린저밴드 하단 근접 — 반등 가능 구간")
+        reasons.append("가격이 밴드 하단 — 과매도 후 반등 구간")
     elif bb_pos in ("above_upper", "near_upper"):
         sell_score += 1
-        reasons.append("볼린저밴드 상단 근접 — 조정 가능 구간")
+        reasons.append("가격이 밴드 상단 — 단기 조정 가능 구간")
 
     # Stochastic
     if stoch_k is not None and stoch_d is not None:
         if stoch_k < 20 and stoch_d < 20:
             buy_score += 1
-            reasons.append(f"스토캐스틱 {stoch_k:.1f} — 과매도")
+            reasons.append(f"단기 지표 과매도 — 저점 매수 기회")
         elif stoch_k > 80 and stoch_d > 80:
             sell_score += 1
-            reasons.append(f"스토캐스틱 {stoch_k:.1f} — 과매수")
+            reasons.append(f"단기 지표 과매수 — 고점 부근")
 
     # Determine action
     net = buy_score - sell_score
@@ -177,11 +231,9 @@ def _build_signal(
         entry_high = nearest_support * 1.02
         stop_loss = round(nearest_support * 0.97, 0)
 
-    # Targets: nearest resistances
     primary_target = resistances[0].price if resistances else None
     secondary_target = resistances[1].price if len(resistances) > 1 else None
 
-    # Risk/reward
     rr = None
     if stop_loss and primary_target and entry_high:
         risk = entry_high - stop_loss
@@ -210,7 +262,6 @@ def analyze_chart(
     stock_name: str | None = None,
     period_days: int = 120,
 ) -> ChartAnalysis:
-    """Fetch price data and run full chart analysis."""
     df = _fetch_prices(stock_code, days=period_days)
 
     if df.empty or len(df) < 30:
@@ -221,7 +272,6 @@ def analyze_chart(
     low = df["low"]
     current_price = float(close.iloc[-1])
 
-    # Indicators
     rsi_series = calc_rsi(close)
     rsi_val = float(rsi_series.iloc[-1]) if not rsi_series.isna().all() else None
 
@@ -230,7 +280,6 @@ def analyze_chart(
     macd_sig = float(signal_line.iloc[-1]) if not signal_line.isna().all() else None
     macd_hist = float(histogram.iloc[-1]) if not histogram.isna().all() else None
 
-    # MACD crossover: compare last two values
     crossover = "none"
     if len(histogram.dropna()) >= 2:
         prev_hist = float(histogram.dropna().iloc[-2])
@@ -280,10 +329,11 @@ def analyze_chart(
         stoch_zone=stoch_zone,
     )
 
-    # Support / Resistance
     supports, resistances = detect_levels(df, current_price)
+    supports, resistances = _fill_missing_levels(
+        supports, resistances, current_price, close, bb_upper, bb_lower
+    )
 
-    # Entry / Exit signal
     signal = _build_signal(
         current_price=current_price,
         rsi=rsi_val,
@@ -296,12 +346,33 @@ def analyze_chart(
         resistances=resistances,
     )
 
+    ohlcv_bars: list[OHLCVBar] = []
+    for _, row in df.iterrows():
+        try:
+            date_raw = str(row["date"])
+            # Normalize date to YYYY-MM-DD
+            if len(date_raw) == 8 and date_raw.isdigit():
+                date_str = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:8]}"
+            else:
+                date_str = date_raw[:10]
+            ohlcv_bars.append(OHLCVBar(
+                date=date_str,
+                open=float(row.get("open", row["close"])),
+                high=float(row["high"]),
+                low=float(row["low"]),
+                close=float(row["close"]),
+                volume=float(row.get("volume", 0)),
+            ))
+        except Exception:
+            pass
+
     return ChartAnalysis(
         stock_code=stock_code,
         stock_name=stock_name,
         generated_at=datetime.now(timezone.utc),
         current_price=current_price,
         analysis_period_days=len(df),
+        ohlcv=ohlcv_bars,
         support_levels=supports,
         resistance_levels=resistances,
         indicators=indicators,

@@ -6,12 +6,22 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class OHLCVBar(BaseModel):
+    date: str  # YYYY-MM-DD
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
 class SupportResistanceLevel(BaseModel):
     price: float
     level_type: Literal["support", "resistance"]
     strength: Literal["weak", "medium", "strong"]
     touch_count: int
     last_tested_date: str | None = None
+    source: str = "swing"  # "swing" | "ma20" | "ma60" | "bb_lower" | "bb_upper"
 
 
 class TechnicalIndicators(BaseModel):
@@ -48,6 +58,7 @@ class ChartAnalysis(BaseModel):
     generated_at: datetime
     current_price: float
     analysis_period_days: int
+    ohlcv: list[OHLCVBar] = []
     support_levels: list[SupportResistanceLevel]
     resistance_levels: list[SupportResistanceLevel]
     indicators: TechnicalIndicators
