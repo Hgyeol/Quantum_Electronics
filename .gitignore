@@ -1,4 +1,5 @@
 .contexty
+.claude
 **/__pycache__
 .venv
 uv.lock

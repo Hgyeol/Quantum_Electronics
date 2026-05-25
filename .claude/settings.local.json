@@ -73,7 +73,11 @@
       "Bash(curl -sS \"http://127.0.0.1:8000/outlook/stock/005930\" -o /tmp/outlook_quote.json -w '%{http_code} %{time_total}s\\\\n')",
       "Bash(npx --no-install tsc --noEmit)",
       "Bash(echo \"exit=$?\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Read(//Users/gimhangyeol/KIS/config/**)",
+      "Read(//Users/gimhangyeol/KIS/**)",
+      "Bash(env)",
+      "Bash(git restore *)"
     ]
   },
   "enableAllProjectMcpServers": true,
