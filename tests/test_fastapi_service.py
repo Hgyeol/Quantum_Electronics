@@ -192,7 +192,7 @@ class FastAPIServiceTests(unittest.TestCase):
         self.assertEqual(report.score.direction, "neutral")
         self.assertEqual(report.ai_signals, [])
         self.assertEqual(report.evidence, [])
-        self.assertEqual(report.errors[0].code, "not_kospi_or_not_found")
+        self.assertEqual(report.errors[0].code, "not_listed_or_not_found")
 
     def test_llm_evidence_excludes_quant_and_market_data(self):
         class QuietQuantEngine:

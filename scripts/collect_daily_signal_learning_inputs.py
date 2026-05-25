@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
@@ -14,7 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from scripts.check_signal_learning_inputs import check_signal_learning_inputs
 from scripts.collect_price_history import collect_price_history, read_codes
 from scripts.collect_signal_features import collect_signal_features
-from scripts.export_stock_universe import export_stock_universe
+from scripts.export_stock_universe import DEFAULT_MASTER_CSVS, export_stock_universe
 from scripts.run_signal_learning_workflow import run_signal_learning_workflow
 
 
@@ -41,7 +42,7 @@ def _authenticate_kis(force_token: bool, kis_server: str) -> None:
 
 def run_daily_signal_learning_collection(
     stock_codes_csv: str | Path = "data/stock_codes.csv",
-    master_csv: str | Path = "kospi.csv",
+    master_csv: str | Path | Sequence[str | Path] = DEFAULT_MASTER_CSVS,
     stock_limit: int = 3,
     prices_csv: str | Path = "data/prices.csv",
     reports_jsonl: str | Path = "data/outlook_reports.jsonl",
@@ -123,7 +124,15 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Collect daily signal-learning inputs")
     parser.add_argument("--stock-codes-csv", default="data/stock_codes.csv")
-    parser.add_argument("--master-csv", default="kospi.csv")
+    parser.add_argument(
+        "--master-csv",
+        action="append",
+        default=None,
+        help=(
+            "Master CSV path. Repeat to merge multiple files. "
+            f"Defaults to {list(DEFAULT_MASTER_CSVS)} when omitted."
+        ),
+    )
     parser.add_argument("--stock-limit", type=int, default=3)
     parser.add_argument("--prices-csv", default="data/prices.csv")
     parser.add_argument("--reports-jsonl", default="data/outlook_reports.jsonl")
@@ -139,9 +148,10 @@ def main() -> int:
     parser.add_argument("--workflow-output-dir", default="ml/artifacts/signal_learning_v1")
     args = parser.parse_args()
 
+    master_csv = args.master_csv if args.master_csv else list(DEFAULT_MASTER_CSVS)
     result = run_daily_signal_learning_collection(
         stock_codes_csv=args.stock_codes_csv,
-        master_csv=args.master_csv,
+        master_csv=master_csv,
         stock_limit=args.stock_limit,
         prices_csv=args.prices_csv,
         reports_jsonl=args.reports_jsonl,

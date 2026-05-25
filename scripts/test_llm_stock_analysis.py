@@ -76,8 +76,8 @@ def main() -> int:
         "query",
         nargs="?",
         help=(
-            "Korean stock code or exact stock name. Name lookup uses root kospi.csv; "
-            "DART corp_code mapping still depends on disclosure/kospi.csv."
+            "Korean stock code or exact stock name. Name lookup uses root kospi.csv + kosdaq.csv; "
+            "DART corp_code mapping uses disclosure/kospi.csv + disclosure/kosdaq.csv."
         ),
     )
     parser.add_argument("--stock-name", help="Optional stock name when query is a stock code")
@@ -155,9 +155,9 @@ def main() -> int:
         errors.append(
             {
                 "source": "stock_lookup",
-                "code": "not_kospi_or_not_found",
+                "code": "not_listed_or_not_found",
                 "message": (
-                    f"Could not resolve '{query}' from the local KOSPI stock master. "
+                    f"Could not resolve '{query}' from the local KOSPI/KOSDAQ stock master. "
                     "News, disclosure, financial, and LLM analysis were skipped."
                 ),
                 "recoverable": True,
@@ -166,7 +166,7 @@ def main() -> int:
         output = {
             "stock": {"code": stock_code, "name": stock_name, "corp_code": corp_code},
             "skipped": True,
-            "skip_reason": "not_kospi_or_not_found",
+            "skip_reason": "not_listed_or_not_found",
             "counts": {
                 "evidence": 0,
                 "quant_signals": 0,

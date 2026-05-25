@@ -1,10 +1,13 @@
-"""Export a stock-code universe file from the local KOSPI master CSV."""
+"""Export a stock-code universe file from the local KOSPI/KOSDAQ master CSVs."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+from collections.abc import Sequence
 from pathlib import Path
+
+DEFAULT_MASTER_CSVS: tuple[str, ...] = ("kospi.csv", "kosdaq.csv")
 
 
 def _read_master_rows(
@@ -21,28 +24,35 @@ def _read_master_rows(
 
 
 def export_stock_universe(
-    master_csv: str | Path,
+    master_csv: str | Path | Sequence[str | Path],
     output_csv: str | Path,
     limit: int | None = None,
 ) -> int:
-    rows = _read_master_rows(Path(master_csv))
+    if isinstance(master_csv, (str, Path)):
+        master_paths = [Path(master_csv)]
+    else:
+        master_paths = [Path(p) for p in master_csv]
+
     exported: list[dict[str, str]] = []
     seen: set[str] = set()
-    for row in rows:
-        code = (row.get("단축코드") or "").strip()
-        full_name = (row.get("한글 종목명") or "").strip()
-        short_name = (row.get("한글 종목약명") or "").strip()
-        market = (row.get("시장구분") or "").strip()
-        if not code or code in seen:
-            continue
-        exported.append(
-            {
-                "stock_code": code,
-                "stock_name": short_name or full_name,
-                "market": market,
-            }
-        )
-        seen.add(code)
+    for path in master_paths:
+        for row in _read_master_rows(path):
+            code = (row.get("단축코드") or "").strip()
+            full_name = (row.get("한글 종목명") or "").strip()
+            short_name = (row.get("한글 종목약명") or "").strip()
+            market = (row.get("시장구분") or "").strip()
+            if not code or code in seen:
+                continue
+            exported.append(
+                {
+                    "stock_code": code,
+                    "stock_name": short_name or full_name,
+                    "market": market,
+                }
+            )
+            seen.add(code)
+            if limit is not None and len(exported) >= limit:
+                break
         if limit is not None and len(exported) >= limit:
             break
 
@@ -56,13 +66,24 @@ def export_stock_universe(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Export stock universe CSV from kospi.csv")
-    parser.add_argument("--master-csv", default="kospi.csv", help="KOSPI master CSV path")
+    parser = argparse.ArgumentParser(
+        description="Export stock universe CSV from KOSPI/KOSDAQ master CSVs"
+    )
+    parser.add_argument(
+        "--master-csv",
+        action="append",
+        default=None,
+        help=(
+            "Master CSV path. Repeat to merge multiple files. "
+            f"Defaults to {list(DEFAULT_MASTER_CSVS)} when omitted."
+        ),
+    )
     parser.add_argument("--output", required=True, help="Output CSV path")
     parser.add_argument("--limit", type=int, help="Optional max number of stocks to export")
     args = parser.parse_args()
 
-    count = export_stock_universe(args.master_csv, args.output, args.limit)
+    master_csvs = args.master_csv if args.master_csv else list(DEFAULT_MASTER_CSVS)
+    count = export_stock_universe(master_csvs, args.output, args.limit)
     print(f"wrote {count} stocks to {args.output}")
     return 0
 

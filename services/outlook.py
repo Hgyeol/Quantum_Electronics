@@ -22,8 +22,14 @@ from quant.engine import QuantEngine
 from quant.models import QuantSignal
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_STOCK_MASTER_CSV = _PROJECT_ROOT / "kospi.csv"
-_KOSPI_CSV = _PROJECT_ROOT / "disclosure" / "kospi.csv"
+_STOCK_MASTER_CSVS: tuple[Path, ...] = (
+    _PROJECT_ROOT / "kospi.csv",
+    _PROJECT_ROOT / "kosdaq.csv",
+)
+_DART_MAPPING_CSVS: tuple[Path, ...] = (
+    _PROJECT_ROOT / "disclosure" / "kospi.csv",
+    _PROJECT_ROOT / "disclosure" / "kosdaq.csv",
+)
 
 
 def _select_llm_analyzer():
@@ -64,9 +70,9 @@ class OutlookService:
             errors.append(
                 AnalysisError(
                     source="stock_lookup",
-                    code="not_kospi_or_not_found",
+                    code="not_listed_or_not_found",
                     message=(
-                        f"'{stock_code}' was not found in the local KOSPI stock master. "
+                        f"'{stock_code}' was not found in the local KOSPI/KOSDAQ stock master. "
                         "LLM analysis was skipped."
                     ),
                 )
@@ -75,7 +81,7 @@ class OutlookService:
             report = OutlookReport(
                 stock_code=normalized_code,
                 stock_name=stock_name,
-                summary=f"{display_name} outlook is unavailable because the stock is not in the KOSPI master.",
+                summary=f"{display_name} outlook is unavailable because the stock is not in the KOSPI/KOSDAQ master.",
                 score=score,
                 quant_signals=[],
                 ai_signals=[],
@@ -267,47 +273,58 @@ def _read_csv_rows(csv_path: Path, encodings: tuple[str, ...] = ("utf-8-sig", "c
     return []
 
 
-def lookup_corp_code(stock_code: str, csv_path: Path = _KOSPI_CSV) -> str | None:
-    stock = lookup_dart_stock_mapping(stock_code, csv_path=csv_path)
+def _coerce_csv_paths(csv_paths: Path | tuple[Path, ...]) -> tuple[Path, ...]:
+    if isinstance(csv_paths, Path):
+        return (csv_paths,)
+    return tuple(csv_paths)
+
+
+def lookup_corp_code(
+    stock_code: str,
+    csv_paths: Path | tuple[Path, ...] = _DART_MAPPING_CSVS,
+) -> str | None:
+    stock = lookup_dart_stock_mapping(stock_code, csv_paths=csv_paths)
     return stock["corp_code"] if stock else None
 
 
-def lookup_stock_master(query: str, csv_path: Path = _STOCK_MASTER_CSV) -> dict[str, str] | None:
-    """Lookup stock code/name from the local KOSPI stock master CSV."""
-    if not csv_path.exists():
-        return None
-
+def lookup_stock_master(
+    query: str,
+    csv_paths: Path | tuple[Path, ...] = _STOCK_MASTER_CSVS,
+) -> dict[str, str] | None:
+    """Lookup stock code/name from the local KOSPI/KOSDAQ stock master CSVs."""
     normalized_query = query.strip()
-    for row in _read_csv_rows(csv_path):
-        stock_code = (row.get("단축코드") or "").strip()
-        full_name = (row.get("한글 종목명") or "").strip()
-        short_name = (row.get("한글 종목약명") or "").strip()
-        if normalized_query in (stock_code, full_name, short_name):
-            return {
-                "stock_code": stock_code,
-                "corp_name": short_name or full_name,
-                "market": (row.get("시장구분") or "").strip(),
-            }
+    for csv_path in _coerce_csv_paths(csv_paths):
+        if not csv_path.exists():
+            continue
+        for row in _read_csv_rows(csv_path):
+            stock_code = (row.get("단축코드") or "").strip()
+            full_name = (row.get("한글 종목명") or "").strip()
+            short_name = (row.get("한글 종목약명") or "").strip()
+            if normalized_query in (stock_code, full_name, short_name):
+                return {
+                    "stock_code": stock_code,
+                    "corp_name": short_name or full_name,
+                    "market": (row.get("시장구분") or "").strip(),
+                }
     return None
 
 
-def lookup_dart_stock_mapping(query: str, csv_path: Path = _KOSPI_CSV) -> dict[str, str] | None:
-    """Best-effort lookup from the local DART corp-code CSV.
-
-    This is not a complete stock master. The current CSV is used for DART
-    financial/disclosure corp_code mapping and may not cover every listed stock.
-    """
-    if not csv_path.exists():
-        return None
-
+def lookup_dart_stock_mapping(
+    query: str,
+    csv_paths: Path | tuple[Path, ...] = _DART_MAPPING_CSVS,
+) -> dict[str, str] | None:
+    """Best-effort lookup from the local DART corp-code CSV(s) for KOSPI/KOSDAQ."""
     normalized_query = query.strip()
-    for row in _read_csv_rows(csv_path):
-        stock_code = (row.get("stock_code") or "").strip()
-        corp_name = (row.get("corp_name") or "").strip()
-        if normalized_query in (stock_code, corp_name):
-            return {
-                "corp_code": (row.get("corp_code") or "").strip(),
-                "corp_name": corp_name,
-                "stock_code": stock_code,
-            }
+    for csv_path in _coerce_csv_paths(csv_paths):
+        if not csv_path.exists():
+            continue
+        for row in _read_csv_rows(csv_path):
+            stock_code = (row.get("stock_code") or "").strip()
+            corp_name = (row.get("corp_name") or "").strip()
+            if normalized_query in (stock_code, corp_name):
+                return {
+                    "corp_code": (row.get("corp_code") or "").strip(),
+                    "corp_name": corp_name,
+                    "stock_code": stock_code,
+                }
     return None
