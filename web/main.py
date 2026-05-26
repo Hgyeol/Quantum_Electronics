@@ -133,22 +133,24 @@ class RankItemResponse(BaseModel):
 @app.get("/ranking/volume", response_model=list[RankItemResponse])
 def get_volume_ranking(
     sort: str = Query("volume", description="volume: 거래량순 | amount: 거래대금순"),
+    limit: int = Query(20, ge=1, le=100, description="반환 종목 수"),
 ):
-    """거래량/거래대금 순위 TOP 20."""
+    """거래량/거래대금 순위."""
     if sort not in ("volume", "amount"):
         raise HTTPException(status_code=422, detail="sort must be 'volume' or 'amount'")
-    items = fetch_volume_rank(sort=sort, limit=20)
+    items = fetch_volume_rank(sort=sort, limit=limit)
     return [RankItemResponse(**item.__dict__) for item in items]
 
 
 @app.get("/ranking/foreign", response_model=list[RankItemResponse])
 def get_foreign_ranking(
     investor: str = Query("foreign", description="foreign: 외국인 | institution: 기관"),
+    limit: int = Query(20, ge=1, le=100, description="반환 종목 수"),
 ):
-    """외국인/기관 순매수 순위 TOP 20."""
+    """외국인/기관 순매수 순위."""
     if investor not in ("foreign", "institution"):
         raise HTTPException(status_code=422, detail="investor must be 'foreign' or 'institution'")
-    items = fetch_foreign_institution_rank(investor=investor, limit=20)
+    items = fetch_foreign_institution_rank(investor=investor, limit=limit)
     return [RankItemResponse(**item.__dict__) for item in items]
 
 
