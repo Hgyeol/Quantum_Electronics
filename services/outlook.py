@@ -287,6 +287,43 @@ def lookup_corp_code(
     return stock["corp_code"] if stock else None
 
 
+def search_stock_master(
+    query: str,
+    csv_paths: Path | tuple[Path, ...] = _STOCK_MASTER_CSVS,
+    limit: int = 10,
+) -> list[dict[str, str]]:
+    """부분 일치 종목 검색. 코드 또는 이름의 앞부분 일치 우선, 포함 일치 후순위."""
+    q = query.strip()
+    if not q:
+        return []
+    q_lower = q.lower()
+    exact: list[dict[str, str]] = []
+    starts: list[dict[str, str]] = []
+    contains: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for csv_path in _coerce_csv_paths(csv_paths):
+        if not csv_path.exists():
+            continue
+        for row in _read_csv_rows(csv_path):
+            code = (row.get("단축코드") or "").strip()
+            full = (row.get("한글 종목명") or "").strip()
+            short = (row.get("한글 종목약명") or "").strip()
+            name = short or full
+            if not code or code in seen:
+                continue
+            if q in (code, full, short):
+                seen.add(code)
+                exact.append({"stock_code": code, "corp_name": name})
+            elif code.startswith(q) or name.lower().startswith(q_lower):
+                seen.add(code)
+                starts.append({"stock_code": code, "corp_name": name})
+            elif q_lower in name.lower():
+                seen.add(code)
+                contains.append({"stock_code": code, "corp_name": name})
+    results = exact + starts + contains
+    return results[:limit]
+
+
 def lookup_stock_master(
     query: str,
     csv_paths: Path | tuple[Path, ...] = _STOCK_MASTER_CSVS,

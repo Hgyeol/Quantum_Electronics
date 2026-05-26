@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from analysis.models import OutlookReport
 from chart.analyzer import analyze_chart
 from chart.models import ChartAnalysis
-from services.outlook import OutlookService, lookup_stock_master
+from services.outlook import OutlookService, lookup_stock_master, search_stock_master
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
 from services.realtime import stream_prices
@@ -109,6 +109,12 @@ class WatchlistItemResponse(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "quantum-electronics"}
+
+
+@app.get("/search")
+def search_stocks(q: str = Query(..., min_length=1, description="종목코드 또는 종목명 (부분 일치)")):
+    """종목 검색 — 코드·이름 부분 일치, 최대 10개 반환."""
+    return search_stock_master(q, limit=10)
 
 
 @app.get("/", response_class=HTMLResponse)
