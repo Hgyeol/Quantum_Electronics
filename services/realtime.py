@@ -9,8 +9,8 @@ from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
-_KIS_WS_PROD  = "ws://ops.koreainvestment.com:21000/tryitout"
-_KIS_WS_PAPER = "ws://ops.koreainvestment.com:31000/tryitout"
+_KIS_WS_PROD  = "ws://ops.koreainvestment.com:21000"
+_KIS_WS_PAPER = "ws://ops.koreainvestment.com:31000"
 _TR_ID = "H0UNCNT0"  # 국내주식 실시간체결가 (통합)
 
 # H0UNCNT0 응답 컬럼 순서 (ccnl_total.py 참조)
@@ -72,7 +72,7 @@ async def stream_prices(
     logger.info("KIS WS 연결: %s (%d 종목)", url, len(codes))
 
     try:
-        async with websockets.connect(url) as ws:
+        async with websockets.connect(url, ping_interval=None) as ws:
             for code in codes:
                 await ws.send(_sub_msg(approval_key, code))
                 await asyncio.sleep(0.05)
