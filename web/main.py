@@ -19,6 +19,7 @@ from analysis.models import OutlookReport
 from chart.analyzer import analyze_chart
 from chart.models import ChartAnalysis
 from services.outlook import OutlookService, lookup_stock_master, search_stock_master
+from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, RankItem
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
 from services.realtime import stream_prices
@@ -115,6 +116,40 @@ def health():
 def search_stocks(q: str = Query(..., min_length=1, description="종목코드 또는 종목명 (부분 일치)")):
     """종목 검색 — 코드·이름 부분 일치, 최대 10개 반환."""
     return search_stock_master(q, limit=10)
+
+
+class RankItemResponse(BaseModel):
+    rank: int
+    stock_code: str
+    stock_name: str
+    price: int
+    change: int
+    change_rate: float
+    volume: int
+    trade_value: int
+    extra_value: int = 0
+
+
+@app.get("/ranking/volume", response_model=list[RankItemResponse])
+def get_volume_ranking(
+    sort: str = Query("volume", description="volume: 거래량순 | amount: 거래대금순"),
+):
+    """거래량/거래대금 순위 TOP 20."""
+    if sort not in ("volume", "amount"):
+        raise HTTPException(status_code=422, detail="sort must be 'volume' or 'amount'")
+    items = fetch_volume_rank(sort=sort, limit=20)
+    return [RankItemResponse(**item.__dict__) for item in items]
+
+
+@app.get("/ranking/foreign", response_model=list[RankItemResponse])
+def get_foreign_ranking(
+    investor: str = Query("foreign", description="foreign: 외국인 | institution: 기관"),
+):
+    """외국인/기관 순매수 순위 TOP 20."""
+    if investor not in ("foreign", "institution"):
+        raise HTTPException(status_code=422, detail="investor must be 'foreign' or 'institution'")
+    items = fetch_foreign_institution_rank(investor=investor, limit=20)
+    return [RankItemResponse(**item.__dict__) for item in items]
 
 
 @app.get("/", response_class=HTMLResponse)
