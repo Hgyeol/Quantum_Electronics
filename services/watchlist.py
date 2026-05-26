@@ -57,18 +57,18 @@ def fetch_multi_price(codes: list[str], name_map: dict[str, str]) -> list[Watchl
 
     items: list[WatchlistItem] = []
     for row in rows:
-        code = (row.get("stck_shrn_iscd") or "").strip()
+        code = (row.get("inter_shrn_iscd") or "").strip()
         if not code:
             continue
         try:
-            price = int(row.get("stck_prpr") or 0)
-            change = int(row.get("prdy_vrss") or 0)
+            price = int(row.get("inter2_prpr") or 0)
+            change = int(row.get("inter2_prdy_vrss") or 0)
             change_rate = float(row.get("prdy_ctrt") or 0)
             volume = int(row.get("acml_vol") or 0)
         except (ValueError, TypeError):
             continue
 
-        kis_name = (row.get("hts_kor_isnm") or "").strip() or None
+        kis_name = (row.get("inter_kor_isnm") or "").strip() or None
         items.append(
             WatchlistItem(
                 stock_code=code,
