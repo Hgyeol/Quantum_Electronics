@@ -9,15 +9,17 @@ from pathlib import Path
 
 from datetime import date
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from pydantic import BaseModel
 
 from analysis.models import OutlookReport
 from chart.analyzer import analyze_chart
 from chart.models import ChartAnalysis
+from services.auth import check_admin_credentials, load_watchlist_codes, save_watchlist_codes
 from services.outlook import OutlookService, lookup_stock_master, search_stock_master
 from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, RankItem
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
@@ -25,6 +27,7 @@ from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_pric
 from services.realtime import stream_prices
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+_SESSION_SECRET = os.getenv("SESSION_SECRET", "quantum-session-secret-change-me")
 
 logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -85,12 +88,21 @@ _origins = [
     for origin in os.getenv("OUTLOOK_CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")
     if origin.strip()
 ]
+
+# SessionMiddleware must be added before CORSMiddleware so CORS headers wrap the session
+app.add_middleware(SessionMiddleware, secret_key=_SESSION_SECRET, same_site="lax", https_only=False, max_age=60 * 60 * 24 * 7)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_methods=["GET"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+
+def require_admin(request: Request) -> None:
+    if not request.session.get("admin"):
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다")
 
 
 def get_outlook_service() -> OutlookService:
@@ -112,7 +124,53 @@ def health():
     return {"status": "ok", "service": "quantum-electronics"}
 
 
-@app.get("/search")
+# ── 인증 ─────────────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/auth/login")
+def login(body: LoginRequest, request: Request):
+    if not check_admin_credentials(body.username, body.password):
+        raise HTTPException(status_code=401, detail="사용자명 또는 비밀번호가 올바르지 않습니다")
+    request.session["admin"] = True
+    return {"ok": True}
+
+
+@app.post("/auth/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"ok": True}
+
+
+@app.get("/auth/me")
+def auth_me(request: Request):
+    if not request.session.get("admin"):
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다")
+    return {"authenticated": True}
+
+
+# ── 관심종목 (서버 저장) ──────────────────────────────────────────────────────
+
+class WatchlistUpdateRequest(BaseModel):
+    codes: list[str]
+
+
+@app.get("/me/watchlist", dependencies=[Depends(require_admin)])
+def get_my_watchlist():
+    return load_watchlist_codes()
+
+
+@app.post("/me/watchlist", dependencies=[Depends(require_admin)])
+def set_my_watchlist(body: WatchlistUpdateRequest):
+    codes = [c.strip() for c in body.codes if c.strip()][:50]
+    save_watchlist_codes(codes)
+    return {"ok": True, "count": len(codes)}
+
+
+@app.get("/search", dependencies=[Depends(require_admin)])
 def search_stocks(q: str = Query(..., min_length=1, description="종목코드 또는 종목명 (부분 일치)")):
     """종목 검색 — 코드·이름 부분 일치, 최대 10개 반환."""
     return search_stock_master(q, limit=10)
@@ -130,7 +188,7 @@ class RankItemResponse(BaseModel):
     extra_value: int = 0
 
 
-@app.get("/ranking/volume", response_model=list[RankItemResponse])
+@app.get("/ranking/volume", response_model=list[RankItemResponse], dependencies=[Depends(require_admin)])
 def get_volume_ranking(
     sort: str = Query("volume", description="volume: 거래량순 | amount: 거래대금순"),
     limit: int = Query(20, ge=1, le=100, description="반환 종목 수"),
@@ -142,7 +200,7 @@ def get_volume_ranking(
     return [RankItemResponse(**item.__dict__) for item in items]
 
 
-@app.get("/ranking/foreign", response_model=list[RankItemResponse])
+@app.get("/ranking/foreign", response_model=list[RankItemResponse], dependencies=[Depends(require_admin)])
 def get_foreign_ranking(
     investor: str = Query("foreign", description="foreign: 외국인 | institution: 기관"),
     limit: int = Query(20, ge=1, le=100, description="반환 종목 수"),
@@ -160,7 +218,7 @@ def indicator_frontend():
     return HTMLResponse(index_path.read_text(encoding="utf-8"))
 
 
-@app.get("/outlook/stock/{code}", response_model=OutlookReport)
+@app.get("/outlook/stock/{code}", response_model=OutlookReport, dependencies=[Depends(require_admin)])
 def get_stock_outlook(
     code: str,
     avg_price: float | None = Query(None, gt=0, description="Position average price (KRW)"),
@@ -178,7 +236,7 @@ def get_stock_outlook(
     )
 
 
-@app.get("/chart/{code}", response_model=ChartAnalysis)
+@app.get("/chart/{code}", response_model=ChartAnalysis, dependencies=[Depends(require_admin)])
 def get_chart_analysis(
     code: str,
     days: int = Query(120, ge=60, le=365, description="분석 기간 (거래일 기준)"),
@@ -200,7 +258,7 @@ def get_chart_analysis(
         raise HTTPException(status_code=500, detail=f"차트 분석 오류: {exc}")
 
 
-@app.get("/watchlist", response_model=list[WatchlistItemResponse])
+@app.get("/watchlist", response_model=list[WatchlistItemResponse], dependencies=[Depends(require_admin)])
 def get_watchlist(
     codes: str = Query(..., description="콤마 구분 종목코드 목록 (최대 30)"),
 ):
@@ -258,12 +316,12 @@ async def ws_watchlist(websocket: WebSocket, codes: str = Query(...)):
             pass
 
 
-@app.get("/technical/indicators")
+@app.get("/technical/indicators", dependencies=[Depends(require_admin)])
 def get_technical_indicators():
     return {"indicators": list_indicator_definitions()}
 
 
-@app.get("/technical/indicators/{code}")
+@app.get("/technical/indicators/{code}", dependencies=[Depends(require_admin)])
 def get_stock_technical_indicators(
     code: str,
     ids: str | None = Query(None, description="Comma-separated indicator ids. Defaults to all."),
