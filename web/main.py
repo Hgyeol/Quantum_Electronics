@@ -9,7 +9,7 @@ from pathlib import Path
 
 from datetime import date
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,6 +21,7 @@ from chart.models import ChartAnalysis
 from services.outlook import OutlookService, lookup_stock_master
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
+from services.realtime import stream_prices
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 
@@ -58,6 +59,13 @@ def initialize_kis_auth() -> bool:
 async def lifespan(app: FastAPI):
     load_dotenv_file()
     app.state.kis_authenticated = initialize_kis_auth()
+    if app.state.kis_authenticated:
+        try:
+            import kis_auth as ka
+            ka.auth_ws(svr=os.getenv("KIS_SERVER", "prod"))
+            logger.info("KIS WebSocket approval key 발급 완료")
+        except Exception as exc:
+            logger.warning("KIS WebSocket auth 실패: %s", exc)
     yield
 
 
@@ -92,6 +100,7 @@ class WatchlistItemResponse(BaseModel):
     change: int
     change_rate: float
     volume: int
+    trade_value: int = 0
 
 
 @app.get("/health")
@@ -169,9 +178,38 @@ def get_watchlist(
             change=item.change,
             change_rate=item.change_rate,
             volume=item.volume,
+            trade_value=item.trade_value,
         )
         for item in items
     ]
+
+
+@app.websocket("/ws/watchlist")
+async def ws_watchlist(websocket: WebSocket, codes: str = Query(...)):
+    """관심종목 실시간 체결가 스트림 (KIS WebSocket relay)."""
+    await websocket.accept()
+    code_list = [c.strip() for c in codes.split(",") if c.strip()][:40]
+    if not code_list:
+        await websocket.close(code=1008)
+        return
+
+    try:
+        async for tick in stream_prices(code_list):
+            try:
+                await websocket.send_json(tick)
+            except WebSocketDisconnect:
+                break
+            except Exception:
+                break
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.error("ws_watchlist 오류: %s", exc)
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.get("/technical/indicators")

@@ -19,6 +19,7 @@ class WatchlistItem:
     change: int
     change_rate: float
     volume: int
+    trade_value: int = 0  # 누적 거래대금 (원, acml_tr_pbmn)
 
 
 def fetch_multi_price(codes: list[str], name_map: dict[str, str]) -> list[WatchlistItem]:
@@ -65,6 +66,7 @@ def fetch_multi_price(codes: list[str], name_map: dict[str, str]) -> list[Watchl
             change = int(row.get("inter2_prdy_vrss") or 0)
             change_rate = float(row.get("prdy_ctrt") or 0)
             volume = int(row.get("acml_vol") or 0)
+            trade_value = int(row.get("acml_tr_pbmn") or 0)
         except (ValueError, TypeError):
             continue
 
@@ -77,6 +79,7 @@ def fetch_multi_price(codes: list[str], name_map: dict[str, str]) -> list[Watchl
                 change=change,
                 change_rate=change_rate,
                 volume=volume,
+                trade_value=trade_value,
             )
         )
 
