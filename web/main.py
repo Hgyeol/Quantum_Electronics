@@ -13,11 +13,14 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from pydantic import BaseModel
+
 from analysis.models import OutlookReport
 from chart.analyzer import analyze_chart
 from chart.models import ChartAnalysis
-from services.outlook import OutlookService
+from services.outlook import OutlookService, lookup_stock_master
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
+from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 
@@ -82,6 +85,15 @@ def get_outlook_service() -> OutlookService:
     return OutlookService()
 
 
+class WatchlistItemResponse(BaseModel):
+    stock_code: str
+    stock_name: str | None
+    price: int
+    change: int
+    change_rate: float
+    volume: int
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "quantum-electronics"}
@@ -131,6 +143,35 @@ def get_chart_analysis(
     except Exception as exc:
         logger.exception("chart analysis failed for %s", code)
         raise HTTPException(status_code=500, detail=f"차트 분석 오류: {exc}")
+
+
+@app.get("/watchlist", response_model=list[WatchlistItemResponse])
+def get_watchlist(
+    codes: str = Query(..., description="콤마 구분 종목코드 목록 (최대 30)"),
+):
+    """관심종목 멀티 시세 조회."""
+    code_list = [c.strip() for c in codes.split(",") if c.strip()][:30]
+    if not code_list:
+        raise HTTPException(status_code=422, detail="codes 파라미터가 비어 있습니다")
+
+    name_map: dict[str, str] = {}
+    for code in code_list:
+        master = lookup_stock_master(code)
+        if master:
+            name_map[code] = master["corp_name"]
+
+    items = fetch_multi_price(code_list, name_map)
+    return [
+        WatchlistItemResponse(
+            stock_code=item.stock_code,
+            stock_name=item.stock_name,
+            price=item.price,
+            change=item.change,
+            change_rate=item.change_rate,
+            volume=item.volume,
+        )
+        for item in items
+    ]
 
 
 @app.get("/technical/indicators")
