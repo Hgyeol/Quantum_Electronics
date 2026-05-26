@@ -28,6 +28,9 @@ from services.realtime import stream_prices
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 _SESSION_SECRET = os.getenv("SESSION_SECRET", "quantum-session-secret-change-me")
+# 프로덕션(HTTPS)에서는 SESSION_SAME_SITE=none, SESSION_HTTPS_ONLY=true 로 설정
+_SESSION_SAME_SITE = os.getenv("SESSION_SAME_SITE", "lax")          # lax | none
+_SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "false").lower() in {"1", "true", "yes"}
 
 logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -90,7 +93,7 @@ _origins = [
 ]
 
 # SessionMiddleware must be added before CORSMiddleware so CORS headers wrap the session
-app.add_middleware(SessionMiddleware, secret_key=_SESSION_SECRET, same_site="lax", https_only=False, max_age=60 * 60 * 24 * 7)
+app.add_middleware(SessionMiddleware, secret_key=_SESSION_SECRET, same_site=_SESSION_SAME_SITE, https_only=_SESSION_HTTPS_ONLY, max_age=60 * 60 * 24 * 7)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
