@@ -124,7 +124,12 @@ class WatchlistItemResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "quantum-electronics"}
+    import subprocess
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:
+        sha = "unknown"
+    return {"status": "ok", "service": "quantum-electronics", "deploy": sha}
 
 
 # ── 인증 ─────────────────────────────────────────────────────────────────────
