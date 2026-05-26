@@ -31,11 +31,20 @@ _COLUMNS = [
 ]
 
 
+_cached_approval_key: str | None = None
+
+
 def get_approval_key(svr: str = "prod") -> str | None:
+    global _cached_approval_key
+    if _cached_approval_key:
+        return _cached_approval_key
     try:
         import kis_auth as ka
         ka.auth_ws(svr=svr)
-        return ka._base_headers_ws.get("approval_key")
+        key = ka._base_headers_ws.get("approval_key")
+        if key:
+            _cached_approval_key = key
+        return key
     except Exception as exc:
         logger.warning("auth_ws failed: %s", exc)
         return None

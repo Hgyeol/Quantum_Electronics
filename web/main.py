@@ -61,9 +61,12 @@ async def lifespan(app: FastAPI):
     app.state.kis_authenticated = initialize_kis_auth()
     if app.state.kis_authenticated:
         try:
-            import kis_auth as ka
-            ka.auth_ws(svr=os.getenv("KIS_SERVER", "prod"))
-            logger.info("KIS WebSocket approval key 발급 완료")
+            from services.realtime import get_approval_key
+            key = get_approval_key(svr=os.getenv("KIS_SERVER", "prod"))
+            if key:
+                logger.info("KIS WebSocket approval key 발급 완료")
+            else:
+                logger.warning("KIS WebSocket approval key 발급 실패")
         except Exception as exc:
             logger.warning("KIS WebSocket auth 실패: %s", exc)
     yield
