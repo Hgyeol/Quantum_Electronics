@@ -13,7 +13,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import kis_auth as ka
-from services.screener_db import has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices, upsert_stocks
+from services.screener_db import get_oldest_price_date, has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices, upsert_stocks
 
 logger = logging.getLogger(__name__)
 
@@ -91,14 +91,16 @@ def _fetch_prices_chunk(stock_code: str, start: str, end: str) -> list[dict]:
         return []
 
 
-def _fetch_prices(stock_code: str, days: int = 365) -> list[dict]:
-    """페이지네이션으로 최대 days일치 가격 데이터 수집."""
-    # API 1회당 ~100거래일 반환 → 4개월 단위로 나눠 요청
-    chunk_days = 130  # 달력 기준 130일 ≈ 거래일 ~90개 (여유있게)
+def _fetch_prices(stock_code: str, days: int = 365, end_date: datetime | None = None) -> list[dict]:
+    """페이지네이션으로 최대 days일치 가격 데이터 수집.
+
+    end_date: 이 날짜 이전 데이터만 수집 (백필용). None이면 오늘까지.
+    """
+    chunk_days = 130  # 달력 기준 130일 ≈ 거래일 ~90개
     cutoff = (datetime.now() - timedelta(days=days + 60)).strftime("%Y%m%d")
 
     collected: dict[str, dict] = {}
-    end_dt = datetime.now()
+    end_dt = end_date or datetime.now()
 
     for _ in range(6):  # 최대 6번 = 약 780거래일 커버
         end_str = end_dt.strftime("%Y%m%d")
@@ -111,11 +113,9 @@ def _fetch_prices(stock_code: str, days: int = 365) -> list[dict]:
         for row in chunk:
             collected[row["date"]] = row
 
-        # cutoff(1년 전)보다 오래된 데이터가 들어오면 중단
         if chunk and min(r["date"] for r in chunk) <= cutoff:
             break
 
-        # 다음 구간: 현재 구간 시작일 하루 전부터
         end_dt = start_dt - timedelta(days=1)
 
     return sorted(collected.values(), key=lambda r: r["date"])
@@ -182,22 +182,35 @@ def run(price_days: int = 365, investor_days: int = 10) -> None:
     skipped = 0
     today = datetime.now().strftime("%Y%m%d")
 
+    cutoff_date = (datetime.now() - timedelta(days=price_days + 60)).strftime("%Y%m%d")
+
     for i, (code, _market) in enumerate(stock_list):
-        if has_data_for_date(code, today):
+        did_something = False
+
+        # 오늘 데이터 없으면 최신 수집
+        if not has_data_for_date(code, today):
+            prices = _fetch_prices(code, price_days)
+            investor = _fetch_investor(code, investor_days)
+            time.sleep(_SLEEP)
+            if prices:
+                upsert_prices(prices)
+            if investor:
+                upsert_investor(investor)
+            if prices or investor:
+                did_something = True
+        else:
             skipped += 1
-            continue
 
-        prices = _fetch_prices(code, price_days)
+        # 1년치 부족하면 과거 구간 백필
+        oldest = get_oldest_price_date(code)
+        if oldest and oldest > cutoff_date:
+            end_dt = datetime.strptime(oldest, "%Y%m%d") - timedelta(days=1)
+            backfill = _fetch_prices(code, price_days, end_date=end_dt)
+            if backfill:
+                upsert_prices(backfill)
+                did_something = True
 
-        investor = _fetch_investor(code, investor_days)
-        time.sleep(_SLEEP)
-
-        if prices:
-            upsert_prices(prices)
-        if investor:
-            upsert_investor(investor)
-
-        if prices or investor:
+        if did_something:
             collected += 1
 
         if (i + 1) % 100 == 0:

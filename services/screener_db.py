@@ -158,6 +158,16 @@ def get_latest_price_date() -> str | None:
     return row["d"] if row and row["d"] else None
 
 
+def get_oldest_price_date(stock_code: str) -> str | None:
+    """해당 종목의 가장 오래된 가격 데이터 날짜 반환."""
+    with closing(get_conn()) as conn:
+        row = conn.execute(
+            "SELECT MIN(date) AS d FROM daily_price WHERE stock_code = ?",
+            (stock_code,),
+        ).fetchone()
+    return row["d"] if row and row["d"] else None
+
+
 def has_data_for_date(stock_code: str, date: str) -> bool:
     """price와 investor 둘 다 해당 날짜 데이터가 있으면 True."""
     with closing(get_conn()) as conn:
