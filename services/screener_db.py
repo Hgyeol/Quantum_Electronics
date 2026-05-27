@@ -118,3 +118,17 @@ def get_all_stock_codes() -> list[str]:
             "SELECT DISTINCT stock_code FROM daily_price"
         ).fetchall()
     return [r["stock_code"] for r in rows]
+
+
+def has_data_for_date(stock_code: str, date: str) -> bool:
+    """price + investor 둘 다 해당 날짜 데이터가 있으면 True."""
+    with get_conn() as conn:
+        p = conn.execute(
+            "SELECT 1 FROM daily_price WHERE stock_code=? AND date=? LIMIT 1",
+            (stock_code, date),
+        ).fetchone()
+        i = conn.execute(
+            "SELECT 1 FROM daily_investor WHERE stock_code=? AND date=? LIMIT 1",
+            (stock_code, date),
+        ).fetchone()
+    return p is not None and i is not None

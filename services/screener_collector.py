@@ -13,7 +13,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import kis_auth as ka
-from services.screener_db import init_db, log_collection, upsert_investor, upsert_prices
+from services.screener_db import has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,14 @@ def run(price_days: int = 30, investor_days: int = 10) -> None:
 
     start_ts = time.time()
     collected = 0
+    skipped = 0
+    today = datetime.now().strftime("%Y%m%d")
 
     for i, (code, _market) in enumerate(stocks):
+        if has_data_for_date(code, today):
+            skipped += 1
+            continue
+
         prices = _fetch_prices(code, price_days)
         time.sleep(_SLEEP)
 
@@ -154,10 +160,10 @@ def run(price_days: int = 30, investor_days: int = 10) -> None:
         if (i + 1) % 100 == 0:
             elapsed = time.time() - start_ts
             logger.info(
-                "[%d/%d] collected=%d elapsed=%.0fs",
-                i + 1, len(stocks), collected, elapsed,
+                "[%d/%d] collected=%d skipped=%d elapsed=%.0fs",
+                i + 1, len(stocks), collected, skipped, elapsed,
             )
 
     duration = time.time() - start_ts
     log_collection(datetime.now().isoformat(), collected, duration)
-    logger.info("Done. %d/%d stocks in %.0fs", collected, len(stocks), duration)
+    logger.info("Done. collected=%d skipped=%d total=%d in %.0fs", collected, skipped, len(stocks), duration)
