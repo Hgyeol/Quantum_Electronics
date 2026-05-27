@@ -29,7 +29,7 @@ class RankItem:
 
 def fetch_volume_rank(sort: str = "volume", limit: int = 20) -> list[RankItem]:
     """
-    거래량/거래대금 순위 조회.
+    거래량/거래대금 순위 조회. tr_cont 페이지네이션으로 limit개까지 수집.
     sort: "volume" = 거래량순 (FID_BLNG_CLS_CODE=0)
           "amount" = 거래대금순 (FID_BLNG_CLS_CODE=3)
     """
@@ -55,22 +55,31 @@ def fetch_volume_rank(sort: str = "volume", limit: int = 20) -> list[RankItem]:
         "FID_INPUT_DATE_1": "0",
     }
 
-    try:
-        res = ka._url_fetch(_VOLUME_RANK_URL, _VOLUME_RANK_TR_ID, "", params)
-    except Exception as exc:
-        logger.warning("volume_rank call failed: %s", exc)
-        return []
+    all_rows: list = []
+    tr_cont = ""
 
-    if not res.isOK():
-        logger.warning("volume_rank API error")
-        return []
+    while len(all_rows) < limit:
+        try:
+            res = ka._url_fetch(_VOLUME_RANK_URL, _VOLUME_RANK_TR_ID, tr_cont, params)
+        except Exception as exc:
+            logger.warning("volume_rank call failed: %s", exc)
+            break
 
-    rows = res.getBody().output
-    if not isinstance(rows, list):
-        rows = [rows]
+        if not res.isOK():
+            logger.warning("volume_rank API error")
+            break
+
+        rows = res.getBody().output
+        if not isinstance(rows, list):
+            rows = [rows]
+        all_rows.extend(rows)
+
+        tr_cont = getattr(res.getHeader(), "tr_cont", "") or ""
+        if tr_cont != "M":
+            break
 
     items: list[RankItem] = []
-    for i, row in enumerate(rows[:limit]):
+    for i, row in enumerate(all_rows[:limit]):
         try:
             code = (row.get("mksc_shrn_iscd") or "").strip()
             if not code:
