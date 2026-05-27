@@ -23,13 +23,33 @@ from quant.models import QuantSignal
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# 검색 결과 우선순위 — 낮을수록 상위 노출 (시가총액/거래량 기준 주요 종목)
+# 검색 결과 우선순위 — 서버 시작 시 screener DB 거래량으로 동적 로드
+# 로드 전 폴백용 하드코딩 (주요 대형주)
 _SEARCH_PRIORITY: dict[str, int] = {
     "005930": 1,  "000660": 2,  "373220": 3,  "207940": 4,  "005490": 5,
     "005380": 6,  "000270": 7,  "068270": 8,  "035420": 9,  "051910": 10,
     "006400": 11, "035720": 12, "003670": 13, "066570": 14, "028260": 15,
     "034730": 16, "018260": 17, "015760": 18, "086520": 19, "011200": 20,
 }
+
+
+def load_search_priority_from_db() -> None:
+    """screener DB의 최근 거래량 합산으로 _SEARCH_PRIORITY를 갱신."""
+    global _SEARCH_PRIORITY
+    try:
+        from services.screener_db import get_conn
+        from contextlib import closing
+        with closing(get_conn()) as conn:
+            rows = conn.execute(
+                """SELECT stock_code, SUM(CAST(volume AS REAL) * close) AS total_val
+                   FROM daily_price
+                   GROUP BY stock_code
+                   ORDER BY total_val DESC"""
+            ).fetchall()
+        if rows:
+            _SEARCH_PRIORITY = {row["stock_code"]: rank + 1 for rank, row in enumerate(rows)}
+    except Exception:
+        pass  # DB 없으면 하드코딩 폴백 유지
 
 _STOCK_MASTER_CSVS: tuple[Path, ...] = (
     _PROJECT_ROOT / "kospi.csv",
