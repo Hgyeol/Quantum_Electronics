@@ -287,6 +287,24 @@ def lookup_corp_code(
     return stock["corp_code"] if stock else None
 
 
+def load_all_stock_names(
+    csv_paths: Path | tuple[Path, ...] = _STOCK_MASTER_CSVS,
+) -> dict[str, str]:
+    """전체 종목코드 → 종목명 dict 반환."""
+    result: dict[str, str] = {}
+    for csv_path in _coerce_csv_paths(csv_paths):
+        if not csv_path.exists():
+            continue
+        for row in _read_csv_rows(csv_path):
+            code = (row.get("단축코드") or "").strip()
+            full = (row.get("한글 종목명") or "").strip()
+            short = (row.get("한글 종목약명") or "").strip()
+            name = short or full
+            if code and code not in result:
+                result[code] = name
+    return result
+
+
 def search_stock_master(
     query: str,
     csv_paths: Path | tuple[Path, ...] = _STOCK_MASTER_CSVS,

@@ -20,7 +20,7 @@ from analysis.models import OutlookReport
 from chart.analyzer import analyze_chart
 from chart.models import ChartAnalysis
 from services.auth import check_admin_credentials, load_watchlist_codes, save_watchlist_codes
-from services.outlook import OutlookService, _build_market_quote, lookup_stock_master, search_stock_master
+from services.outlook import OutlookService, _build_market_quote, lookup_stock_master, search_stock_master, load_all_stock_names
 from services.position import _kis_current_price_quote
 from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, RankItem
 from services.screener_conditions import run_screener
@@ -380,9 +380,7 @@ def get_screener(
 
     name_map: dict[str, str] = {}
     try:
-        from services.outlook import search_stock_master
-        for item in search_stock_master("", limit=9999):
-            name_map[item["stock_code"]] = item["corp_name"]
+        name_map = load_all_stock_names()
     except Exception:
         pass
 
