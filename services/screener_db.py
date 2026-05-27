@@ -58,6 +58,7 @@ def upsert_prices(rows: list[dict]) -> None:
                VALUES (:stock_code, :date, :open, :high, :low, :close, :volume)""",
             rows,
         )
+        conn.commit()
 
 
 def upsert_investor(rows: list[dict]) -> None:
@@ -71,6 +72,7 @@ def upsert_investor(rows: list[dict]) -> None:
                VALUES (:stock_code, :date, :frgn_ntby_qty, :orgn_ntby_qty)""",
             rows,
         )
+        conn.commit()
 
 
 def log_collection(collected_at: str, stock_count: int, duration_sec: float) -> None:
@@ -80,6 +82,7 @@ def log_collection(collected_at: str, stock_count: int, duration_sec: float) -> 
                VALUES (?, ?, ?)""",
             (collected_at, stock_count, duration_sec),
         )
+        conn.commit()
 
 
 def get_last_collected() -> str | None:
