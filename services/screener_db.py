@@ -20,6 +20,12 @@ def init_db() -> None:
     """Create tables if they don't exist."""
     with closing(get_conn()) as conn:
         conn.executescript("""
+            CREATE TABLE IF NOT EXISTS stocks (
+                stock_code TEXT PRIMARY KEY,
+                name       TEXT,
+                market     TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS daily_price (
                 stock_code TEXT NOT NULL,
                 date       TEXT NOT NULL,
@@ -45,6 +51,26 @@ def init_db() -> None:
                 duration_sec REAL
             );
         """)
+
+
+def upsert_stocks(rows: list[dict]) -> None:
+    """rows: list of {stock_code, name, market}"""
+    if not rows:
+        return
+    with closing(get_conn()) as conn:
+        conn.executemany(
+            """INSERT OR REPLACE INTO stocks (stock_code, name, market)
+               VALUES (:stock_code, :name, :market)""",
+            rows,
+        )
+        conn.commit()
+
+
+def get_all_stock_names() -> dict[str, str]:
+    """stock_code → name 전체 반환 (stocks 테이블)."""
+    with closing(get_conn()) as conn:
+        rows = conn.execute("SELECT stock_code, name FROM stocks").fetchall()
+    return {r["stock_code"]: r["name"] for r in rows}
 
 
 def upsert_prices(rows: list[dict]) -> None:

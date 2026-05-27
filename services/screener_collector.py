@@ -13,7 +13,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import kis_auth as ka
-from services.screener_db import has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices
+from services.screener_db import has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices, upsert_stocks
 
 logger = logging.getLogger(__name__)
 
@@ -129,17 +129,31 @@ def run(price_days: int = 365, investor_days: int = 10) -> None:
     init_db()
     ka.auth()
 
-    stocks = _load_stock_codes()
-    if not stocks:
+    stock_list = _load_stock_codes()
+    if not stock_list:
         logger.error("No stock codes loaded — aborting")
         return
+
+    # stocks 테이블에 종목 메타데이터 저장
+    from services.outlook import load_all_stock_names as _load_names
+    name_map = {}
+    try:
+        name_map = _load_names()
+    except Exception as exc:
+        logger.warning("Failed to load stock names: %s", exc)
+    stock_rows = [
+        {"stock_code": code, "name": name_map.get(code, ""), "market": market}
+        for code, market in stock_list
+    ]
+    upsert_stocks(stock_rows)
+    logger.info("Upserted %d stocks into stocks table", len(stock_rows))
 
     start_ts = time.time()
     collected = 0
     skipped = 0
     today = datetime.now().strftime("%Y%m%d")
 
-    for i, (code, _market) in enumerate(stocks):
+    for i, (code, _market) in enumerate(stock_list):
         if has_data_for_date(code, today):
             skipped += 1
             continue
@@ -162,9 +176,9 @@ def run(price_days: int = 365, investor_days: int = 10) -> None:
             elapsed = time.time() - start_ts
             logger.info(
                 "[%d/%d] collected=%d skipped=%d elapsed=%.0fs",
-                i + 1, len(stocks), collected, skipped, elapsed,
+                i + 1, len(stock_list), collected, skipped, elapsed,
             )
 
     duration = time.time() - start_ts
     log_collection(datetime.now().isoformat(), collected, duration)
-    logger.info("Done. collected=%d skipped=%d total=%d in %.0fs", collected, skipped, len(stocks), duration)
+    logger.info("Done. collected=%d skipped=%d total=%d in %.0fs", collected, skipped, len(stock_list), duration)

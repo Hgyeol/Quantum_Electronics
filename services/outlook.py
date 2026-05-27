@@ -319,7 +319,15 @@ def lookup_corp_code(
 def load_all_stock_names(
     csv_paths: Path | tuple[Path, ...] = _STOCK_MASTER_CSVS,
 ) -> dict[str, str]:
-    """전체 종목코드 → 종목명 dict 반환."""
+    """전체 종목코드 → 종목명 dict 반환. DB 우선, 없으면 CSV 폴백."""
+    try:
+        from services.screener_db import get_all_stock_names
+        names = get_all_stock_names()
+        if names:
+            return names
+    except Exception:
+        pass
+
     result: dict[str, str] = {}
     for csv_path in _coerce_csv_paths(csv_paths):
         if not csv_path.exists():
