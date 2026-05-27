@@ -74,9 +74,10 @@ def fetch_volume_rank(sort: str = "volume", limit: int = 20) -> list[RankItem]:
             rows = [rows]
         all_rows.extend(rows)
 
-        tr_cont = getattr(res.getHeader(), "tr_cont", "") or ""
-        if tr_cont != "M":
+        has_next = (getattr(res.getHeader(), "tr_cont", "") or "") == "M"
+        if not has_next:
             break
+        tr_cont = "N"
 
     items: list[RankItem] = []
     for i, row in enumerate(all_rows[:limit]):
