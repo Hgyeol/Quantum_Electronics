@@ -124,7 +124,7 @@ def _fetch_investor(stock_code: str, days: int = 10) -> list[dict]:
         return []
 
 
-def run(price_days: int = 30, investor_days: int = 10) -> None:
+def run(price_days: int = 365, investor_days: int = 10) -> None:
     """전종목 데이터 수집 및 SQLite 저장."""
     init_db()
     ka.auth()

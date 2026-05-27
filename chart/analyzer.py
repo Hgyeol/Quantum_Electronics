@@ -24,8 +24,21 @@ logger = logging.getLogger(__name__)
 
 
 def _fetch_prices(stock_code: str, days: int = 120) -> pd.DataFrame:
-    """Fetch OHLCV data via KIS API. Returns DataFrame with columns
-    [date, open, high, low, close, volume] sorted oldest→newest."""
+    """Fetch OHLCV data. Tries screener DB first, falls back to KIS API."""
+    # 1순위: screener DB (빠르고 과거 데이터 풍부)
+    try:
+        from services.screener_db import get_prices
+        rows = get_prices(stock_code, days=days)
+        if rows and len(rows) >= 30:
+            df = pd.DataFrame(rows)
+            for col in ["open", "high", "low", "close", "volume"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            return df.sort_values("date").reset_index(drop=True)
+    except Exception as exc:
+        logger.debug("screener_db unavailable: %s", exc)
+
+    # 2순위: data_fetcher
     try:
         from core.data_fetcher import get_daily_prices
         df = get_daily_prices(stock_code, days=days)
