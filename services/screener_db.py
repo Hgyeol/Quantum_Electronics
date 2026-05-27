@@ -128,14 +128,10 @@ def get_latest_price_date() -> str | None:
 
 
 def has_data_for_date(stock_code: str, date: str) -> bool:
-    """price + investor 둘 다 해당 날짜 데이터가 있으면 True."""
+    """해당 날짜 price 데이터가 있으면 True (investor는 장 중 미제공으로 체크 제외)."""
     with get_conn() as conn:
         p = conn.execute(
             "SELECT 1 FROM daily_price WHERE stock_code=? AND date=? LIMIT 1",
             (stock_code, date),
         ).fetchone()
-        i = conn.execute(
-            "SELECT 1 FROM daily_investor WHERE stock_code=? AND date=? LIMIT 1",
-            (stock_code, date),
-        ).fetchone()
-    return p is not None and i is not None
+    return p is not None
