@@ -106,7 +106,7 @@ def _fetch_investor(stock_code: str, days: int = 10) -> list[dict]:
         res = ka._url_fetch(_INVESTOR_URL, _INVESTOR_TR_ID, "", params)
         if not res.isOK():
             return []
-        rows = getattr(res.getBody(), "output1", None) or []
+        rows = getattr(res.getBody(), "output2", None) or []
         result = []
         for r in rows:
             try:
