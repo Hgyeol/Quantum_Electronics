@@ -22,6 +22,15 @@ from quant.engine import QuantEngine
 from quant.models import QuantSignal
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# 검색 결과 우선순위 — 낮을수록 상위 노출 (시가총액/거래량 기준 주요 종목)
+_SEARCH_PRIORITY: dict[str, int] = {
+    "005930": 1,  "000660": 2,  "373220": 3,  "207940": 4,  "005490": 5,
+    "005380": 6,  "000270": 7,  "068270": 8,  "035420": 9,  "051910": 10,
+    "006400": 11, "035720": 12, "003670": 13, "066570": 14, "028260": 15,
+    "034730": 16, "018260": 17, "015760": 18, "086520": 19, "011200": 20,
+}
+
 _STOCK_MASTER_CSVS: tuple[Path, ...] = (
     _PROJECT_ROOT / "kospi.csv",
     _PROJECT_ROOT / "kosdaq.csv",
@@ -338,7 +347,12 @@ def search_stock_master(
             elif q_lower in name.lower():
                 seen.add(code)
                 contains.append({"stock_code": code, "corp_name": name})
-    results = exact + starts + contains
+    def _rank(item: dict[str, str]) -> tuple:
+        code = item["stock_code"]
+        priority = _SEARCH_PRIORITY.get(code, 9999)
+        return (priority, len(item["corp_name"]), code)
+
+    results = exact + sorted(starts, key=_rank) + sorted(contains, key=_rank)
     return results[:limit]
 
 
