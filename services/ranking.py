@@ -74,8 +74,9 @@ def fetch_volume_rank(sort: str = "volume", limit: int = 20) -> list[RankItem]:
             rows = [rows]
         all_rows.extend(rows)
 
-        has_next = (getattr(res.getHeader(), "tr_cont", "") or "") == "M"
-        if not has_next:
+        raw_headers = res.getResponse().headers
+        resp_tr_cont = raw_headers.get("tr-cont") or raw_headers.get("tr_cont") or ""
+        if resp_tr_cont != "M":
             break
         tr_cont = "N"
 
