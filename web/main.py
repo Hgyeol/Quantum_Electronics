@@ -22,6 +22,8 @@ from chart.models import ChartAnalysis
 from services.auth import check_admin_credentials, load_watchlist_codes, save_watchlist_codes
 from services.outlook import OutlookService, lookup_stock_master, search_stock_master
 from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, RankItem
+from services.screener_conditions import run_screener
+from services.screener_db import get_last_collected
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
 from services.realtime import stream_prices
@@ -337,3 +339,55 @@ def get_stock_technical_indicators(
 ):
     indicator_ids = [item.strip() for item in ids.split(",") if item.strip()] if ids else None
     return calculate_indicators(code, indicator_ids=indicator_ids, days=days)
+
+
+# ── Screener ─────────────────────────────────────────────────────────────────
+
+_AVAILABLE_CONDITIONS = ["volume_surge", "golden_cross", "frgn_buy", "orgn_buy"]
+
+
+class ScreenerResultResponse(BaseModel):
+    stock_code: str
+    stock_name: str
+    close: int
+    volume: int
+    matched_conditions: list[str]
+
+
+@app.get("/screener", response_model=list[ScreenerResultResponse], dependencies=[Depends(require_admin)])
+def get_screener(
+    conditions: str = Query(
+        ...,
+        description=f"Comma-separated conditions. Available: {', '.join(_AVAILABLE_CONDITIONS)}",
+    ),
+    volume_threshold: float = Query(2.0, ge=1.0, description="거래량 급등 배수 (기본 2.0 = 20일 평균의 2배)"),
+    consecutive_days: int = Query(3, ge=1, le=10, description="외국인/기관 연속 순매수 일수"),
+):
+    cond_list = [c.strip() for c in conditions.split(",") if c.strip()]
+    if not cond_list:
+        raise HTTPException(status_code=422, detail="conditions is required")
+
+    name_map: dict[str, str] = {}
+    try:
+        from services.outlook import search_stock_master
+        for item in search_stock_master("", limit=9999):
+            name_map[item["stock_code"]] = item["corp_name"]
+    except Exception:
+        pass
+
+    try:
+        results = run_screener(
+            conditions=cond_list,
+            name_map=name_map,
+            volume_threshold=volume_threshold,
+            consecutive_days=consecutive_days,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    return [ScreenerResultResponse(**r.__dict__) for r in results]
+
+
+@app.get("/screener/status", dependencies=[Depends(require_admin)])
+def get_screener_status():
+    return {"last_collected": get_last_collected()}
