@@ -20,7 +20,8 @@ from analysis.models import OutlookReport
 from chart.analyzer import analyze_chart
 from chart.models import ChartAnalysis
 from services.auth import check_admin_credentials, load_watchlist_codes, save_watchlist_codes
-from services.outlook import OutlookService, lookup_stock_master, search_stock_master
+from services.outlook import OutlookService, _build_market_quote, lookup_stock_master, search_stock_master
+from services.position import _kis_current_price_quote
 from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, RankItem
 from services.screener_conditions import run_screener
 from services.screener_db import get_last_collected
@@ -266,6 +267,16 @@ def get_chart_analysis(
     except Exception as exc:
         logger.exception("chart analysis failed for %s", code)
         raise HTTPException(status_code=500, detail=f"차트 분석 오류: {exc}")
+
+
+@app.get("/quote/{code}", dependencies=[Depends(require_admin)])
+def get_market_quote(code: str):
+    """종목 현재가 시세 — 고가·저가·거래량·52W 포함 (전망 보기 없이 즉시 조회)."""
+    quote_dict = _kis_current_price_quote(code)
+    market_quote = _build_market_quote(quote_dict)
+    if market_quote is None:
+        raise HTTPException(status_code=404, detail="시세 조회 실패")
+    return market_quote
 
 
 @app.get("/watchlist", response_model=list[WatchlistItemResponse], dependencies=[Depends(require_admin)])
