@@ -120,6 +120,13 @@ def get_all_stock_codes() -> list[str]:
     return [r["stock_code"] for r in rows]
 
 
+def get_latest_price_date() -> str | None:
+    """daily_price 전체에서 가장 최근 날짜 반환."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT MAX(date) AS d FROM daily_price").fetchone()
+    return row["d"] if row and row["d"] else None
+
+
 def has_data_for_date(stock_code: str, date: str) -> bool:
     """price + investor 둘 다 해당 날짜 데이터가 있으면 True."""
     with get_conn() as conn:
