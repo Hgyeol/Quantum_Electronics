@@ -54,9 +54,8 @@ def _load_stock_codes() -> list[tuple[str, str]]:
     return result
 
 
-def _fetch_prices(stock_code: str, days: int = 30) -> list[dict]:
-    end = datetime.now().strftime("%Y%m%d")
-    start = (datetime.now() - timedelta(days=days + 50)).strftime("%Y%m%d")
+def _fetch_prices_chunk(stock_code: str, start: str, end: str) -> list[dict]:
+    """단일 구간 가격 데이터 조회."""
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": stock_code,
@@ -90,6 +89,36 @@ def _fetch_prices(stock_code: str, days: int = 30) -> list[dict]:
     except Exception as exc:
         logger.debug("Price fetch error %s: %s", stock_code, exc)
         return []
+
+
+def _fetch_prices(stock_code: str, days: int = 365) -> list[dict]:
+    """페이지네이션으로 최대 days일치 가격 데이터 수집."""
+    # API 1회당 ~100거래일 반환 → 4개월 단위로 나눠 요청
+    chunk_days = 130  # 달력 기준 130일 ≈ 거래일 ~90개 (여유있게)
+    cutoff = (datetime.now() - timedelta(days=days + 60)).strftime("%Y%m%d")
+
+    collected: dict[str, dict] = {}
+    end_dt = datetime.now()
+
+    for _ in range(6):  # 최대 6번 = 약 780거래일 커버
+        end_str = end_dt.strftime("%Y%m%d")
+        start_dt = end_dt - timedelta(days=chunk_days)
+        start_str = start_dt.strftime("%Y%m%d")
+
+        chunk = _fetch_prices_chunk(stock_code, start_str, end_str)
+        time.sleep(_SLEEP)
+
+        for row in chunk:
+            collected[row["date"]] = row
+
+        # cutoff(1년 전)보다 오래된 데이터가 들어오면 중단
+        if chunk and min(r["date"] for r in chunk) <= cutoff:
+            break
+
+        # 다음 구간: 현재 구간 시작일 하루 전부터
+        end_dt = start_dt - timedelta(days=1)
+
+    return sorted(collected.values(), key=lambda r: r["date"])
 
 
 def _fetch_investor(stock_code: str, days: int = 10) -> list[dict]:
@@ -159,7 +188,6 @@ def run(price_days: int = 365, investor_days: int = 10) -> None:
             continue
 
         prices = _fetch_prices(code, price_days)
-        time.sleep(_SLEEP)
 
         investor = _fetch_investor(code, investor_days)
         time.sleep(_SLEEP)
