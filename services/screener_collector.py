@@ -93,13 +93,14 @@ def _fetch_prices(stock_code: str, days: int = 30) -> list[dict]:
 
 
 def _fetch_investor(stock_code: str, days: int = 10) -> list[dict]:
-    start = (datetime.now() - timedelta(days=days + 10)).strftime("%Y%m%d")
+    # FID_INPUT_DATE_1은 기준(종료)일 — 오늘 날짜를 넘기면 API가 최근 N일치 반환
+    today = datetime.now().strftime("%Y%m%d")
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": stock_code,
-        "FID_INPUT_DATE_1": start,
-        "FID_ORG_ADJ_PRC": "0",
-        "FID_ETC_CLS_CODE": "0",
+        "FID_INPUT_DATE_1": today,
+        "FID_ORG_ADJ_PRC": "",
+        "FID_ETC_CLS_CODE": "",
     }
     try:
         res = ka._url_fetch(_INVESTOR_URL, _INVESTOR_TR_ID, "", params)
