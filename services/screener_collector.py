@@ -13,7 +13,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import kis_auth as ka
-from services.screener_db import get_latest_price_date, has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices
+from services.screener_db import has_data_for_date, init_db, log_collection, upsert_investor, upsert_prices
 
 logger = logging.getLogger(__name__)
 
@@ -136,12 +136,10 @@ def run(price_days: int = 30, investor_days: int = 10) -> None:
     start_ts = time.time()
     collected = 0
     skipped = 0
-    # DB에 저장된 가장 최근 영업일 날짜 기준으로 skip (오늘 캘린더 날짜가 아님)
-    latest_date = get_latest_price_date()
-    logger.info("Latest price date in DB: %s", latest_date)
+    today = datetime.now().strftime("%Y%m%d")
 
     for i, (code, _market) in enumerate(stocks):
-        if latest_date and has_data_for_date(code, latest_date):
+        if has_data_for_date(code, today):
             skipped += 1
             continue
 
