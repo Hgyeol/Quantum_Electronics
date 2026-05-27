@@ -55,33 +55,22 @@ def fetch_volume_rank(sort: str = "volume", limit: int = 20) -> list[RankItem]:
         "FID_INPUT_DATE_1": "0",
     }
 
-    all_rows: list = []
-    tr_cont = ""
+    try:
+        res = ka._url_fetch(_VOLUME_RANK_URL, _VOLUME_RANK_TR_ID, "", params)
+    except Exception as exc:
+        logger.warning("volume_rank call failed: %s", exc)
+        return []
 
-    while len(all_rows) < limit:
-        try:
-            res = ka._url_fetch(_VOLUME_RANK_URL, _VOLUME_RANK_TR_ID, tr_cont, params)
-        except Exception as exc:
-            logger.warning("volume_rank call failed: %s", exc)
-            break
+    if not res.isOK():
+        logger.warning("volume_rank API error")
+        return []
 
-        if not res.isOK():
-            logger.warning("volume_rank API error")
-            break
-
-        rows = res.getBody().output
-        if not isinstance(rows, list):
-            rows = [rows]
-        all_rows.extend(rows)
-
-        raw_headers = res.getResponse().headers
-        resp_tr_cont = raw_headers.get("tr-cont") or raw_headers.get("tr_cont") or ""
-        if resp_tr_cont != "M":
-            break
-        tr_cont = "N"
+    rows = res.getBody().output
+    if not isinstance(rows, list):
+        rows = [rows]
 
     items: list[RankItem] = []
-    for i, row in enumerate(all_rows[:limit]):
+    for i, row in enumerate(rows[:limit]):
         try:
             code = (row.get("mksc_shrn_iscd") or "").strip()
             if not code:

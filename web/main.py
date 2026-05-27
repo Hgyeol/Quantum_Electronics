@@ -199,7 +199,7 @@ class RankItemResponse(BaseModel):
 @app.get("/ranking/volume", response_model=list[RankItemResponse], dependencies=[Depends(require_admin)])
 def get_volume_ranking(
     sort: str = Query("volume", description="volume: 거래량순 | amount: 거래대금순"),
-    limit: int = Query(20, ge=1, le=100, description="반환 종목 수"),
+    limit: int = Query(30, ge=1, le=30, description="반환 종목 수"),
 ):
     """거래량/거래대금 순위."""
     if sort not in ("volume", "amount"):
@@ -211,7 +211,7 @@ def get_volume_ranking(
 @app.get("/ranking/foreign", response_model=list[RankItemResponse], dependencies=[Depends(require_admin)])
 def get_foreign_ranking(
     investor: str = Query("foreign", description="foreign: 외국인 | institution: 기관"),
-    limit: int = Query(20, ge=1, le=100, description="반환 종목 수"),
+    limit: int = Query(30, ge=1, le=100, description="반환 종목 수"),
 ):
     """외국인/기관 순매수 순위."""
     if investor not in ("foreign", "institution"):
