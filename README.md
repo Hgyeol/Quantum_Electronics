@@ -1,6 +1,6 @@
 # Quantum Electronics
 
-Quantum Electronics is a FastAPI-based investment outlook service for Korean stocks. The target workflow is to combine deterministic quant and financial signals with structured LLM interpretation of news, disclosures, and financial evidence.
+Quantum Electronics is a FastAPI-based investment outlook service for Korean stocks. It combines four signal axes — deterministic quant signals, OpenAI GPT-based news/disclosure analysis, Logistic Regression ML prediction, and DART-sourced financial metrics — into a single `OutlookReport` that shows not just a verdict but the evidence behind it.
 
 The service is analysis-only. Real trading and order APIs are not part of the default execution path and must remain disabled unless explicitly implemented behind a separate safety gate.
 
@@ -120,6 +120,8 @@ The OpenAI Responses analyzer is wrapped by `CachedLLMAnalyzer`; set
 historical backfill share the same on-disk cache.
 
 ## LLM Preference Learning (PRD_LLM_선호학습.md)
+
+> **Status**: experimental pipeline, not active in production. The service defaults to OpenAI.
 
 `scripts/build_dpo_pairs.py` derives DPO training triples from the existing
 dataset: any (date, stock) row where the LLM judgment direction did not
