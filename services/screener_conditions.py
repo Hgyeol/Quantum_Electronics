@@ -6,6 +6,12 @@ import logging
 from dataclasses import dataclass
 
 from services.screener_db import get_all_stock_codes, get_investor, get_prices
+from services.ranking import (
+    fetch_volume_power_rank,
+    fetch_near_new_highlow_rank,
+    fetch_upper_limit_stocks,
+    RankItem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,13 +93,32 @@ _CONDITION_FN = {
     "price_surge": check_price_surge,
 }
 
+# 실시간 KIS API 기반 조건 (per-stock DB 조회 아님)
+_LIVE_CONDITIONS: frozenset[str] = frozenset({"volume_power", "near_high", "upper_limit"})
+
 _CONDITION_LABEL = {
     "volume_surge": "거래량 급등",
     "golden_cross": "골든크로스 (MA5/MA20)",
     "frgn_buy": "외국인 연속 순매수",
     "orgn_buy": "기관 연속 순매수",
     "price_surge": "급등주",
+    "volume_power": "체결강도 상위",
+    "near_high": "신고가 근접",
+    "upper_limit": "상한가 포착",
 }
+
+
+def _fetch_live_items(condition: str) -> list[RankItem]:
+    try:
+        if condition == "volume_power":
+            return fetch_volume_power_rank(50)
+        if condition == "near_high":
+            return fetch_near_new_highlow_rank("high", 50)
+        if condition == "upper_limit":
+            return fetch_upper_limit_stocks()
+    except Exception as exc:
+        logger.warning("Live condition fetch failed [%s]: %s", condition, exc)
+    return []
 
 
 def run_screener(
@@ -106,21 +131,54 @@ def run_screener(
     """
     conditions: 적용할 조건 목록 (AND 조건)
     name_map: stock_code → stock_name
+    라이브 조건(volume_power, near_high, upper_limit)은 KIS API에서 실시간 조회 후 교집합.
+    DB 조건은 screener_db에서 per-stock 검사.
     """
-    invalid = [c for c in conditions if c not in _CONDITION_FN]
+    all_valid = set(_CONDITION_FN.keys()) | _LIVE_CONDITIONS
+    invalid = [c for c in conditions if c not in all_valid]
     if invalid:
-        raise ValueError(f"Unknown conditions: {invalid}. Available: {list(_CONDITION_FN)}")
+        raise ValueError(f"Unknown conditions: {invalid}. Available: {sorted(all_valid)}")
 
-    all_codes = get_all_stock_codes()
-    if not all_codes:
-        logger.warning("screener DB가 비어있음 — collect_screener_data.py 먼저 실행하세요")
+    live_conds = [c for c in conditions if c in _LIVE_CONDITIONS]
+    db_conds = [c for c in conditions if c not in _LIVE_CONDITIONS]
+
+    # ── 라이브 조건 프리패치 ───────────────────────────────────────────────
+    live_sets: dict[str, set[str]] = {}
+    live_price_lookup: dict[str, tuple[int, int]] = {}  # code → (price, volume)
+    for cond in live_conds:
+        items = _fetch_live_items(cond)
+        live_sets[cond] = {item.stock_code for item in items}
+        for item in items:
+            if item.stock_code not in live_price_lookup:
+                live_price_lookup[item.stock_code] = (item.price, item.volume)
+
+    # ── 후보 종목 결정 ────────────────────────────────────────────────────
+    if live_conds:
+        # 라이브 조건들의 교집합
+        candidate_set: set[str] = set.intersection(*[live_sets[c] for c in live_conds])
+        if db_conds:
+            # DB 조건도 있으면 screener DB에 있는 종목만 교차
+            db_codes = set(get_all_stock_codes())
+            candidate_codes = list(candidate_set & db_codes)
+        else:
+            candidate_codes = list(candidate_set)
+    else:
+        candidate_codes = get_all_stock_codes()
+
+    if not candidate_codes:
+        if live_conds and not any(live_sets.values()):
+            logger.warning("라이브 조건 API에서 데이터를 가져오지 못했습니다 (장 마감 또는 API 오류)")
         return []
 
+    # ── 종목별 조건 검사 ──────────────────────────────────────────────────
     results: list[ScreenerResult] = []
 
-    for code in all_codes:
-        matched: list[str] = []
-        for cond in conditions:
+    for code in candidate_codes:
+        # 라이브 조건: 이미 교집합으로 필터링됨 → 레이블만 추가
+        matched: list[str] = [_CONDITION_LABEL[c] for c in live_conds]
+
+        # DB 조건: per-stock 검사
+        for cond in db_conds:
             fn = _CONDITION_FN[cond]
             try:
                 if cond == "volume_surge":
@@ -137,16 +195,23 @@ def run_screener(
             if ok:
                 matched.append(_CONDITION_LABEL[cond])
 
-        if len(matched) == len(conditions):
-            rows = get_prices(code, days=1)
-            close = rows[-1]["close"] if rows else 0
-            volume = rows[-1]["volume"] if rows else 0
-            results.append(ScreenerResult(
-                stock_code=code,
-                stock_name=name_map.get(code, code),
-                close=close,
-                volume=volume,
-                matched_conditions=matched,
-            ))
+        if len(matched) < len(conditions):
+            continue
+
+        # 가격/거래량: DB 우선, 없으면 라이브 API 값 사용
+        rows = get_prices(code, days=1)
+        if rows:
+            close = rows[-1]["close"]
+            volume = rows[-1]["volume"]
+        else:
+            close, volume = live_price_lookup.get(code, (0, 0))
+
+        results.append(ScreenerResult(
+            stock_code=code,
+            stock_name=name_map.get(code, code),
+            close=close,
+            volume=volume,
+            matched_conditions=matched,
+        ))
 
     return results

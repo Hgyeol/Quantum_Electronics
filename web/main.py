@@ -370,7 +370,10 @@ def get_stock_technical_indicators(
 
 # ── Screener ─────────────────────────────────────────────────────────────────
 
-_AVAILABLE_CONDITIONS = ["volume_surge", "golden_cross", "frgn_buy", "orgn_buy"]
+_AVAILABLE_CONDITIONS = [
+    "volume_surge", "golden_cross", "frgn_buy", "orgn_buy", "price_surge",
+    "volume_power", "near_high", "upper_limit",
+]
 
 
 class ScreenerResultResponse(BaseModel):
