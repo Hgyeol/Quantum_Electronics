@@ -13,6 +13,9 @@ _VOLUME_RANK_TR_ID = "FHPST01710000"
 _FOREIGN_INST_URL = "/uapi/domestic-stock/v1/quotations/foreign-institution-total"
 _FOREIGN_INST_TR_ID = "FHPTJ04400000"
 
+_FLUCTUATION_RANK_URL = "/uapi/domestic-stock/v1/ranking/fluctuation"
+_FLUCTUATION_RANK_TR_ID = "FHPST01700000"
+
 
 @dataclass
 class RankItem:
@@ -144,6 +147,67 @@ def fetch_foreign_institution_rank(investor: str = "foreign", limit: int = 20) -
                 volume=int(row.get("acml_vol") or 0),
                 trade_value=0,
                 extra_value=int(row.get(ntby_qty_key) or 0),
+            ))
+        except (ValueError, TypeError):
+            continue
+
+    return items
+
+
+def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
+    """등락률 상위(급등주) 순위 조회. API: FHPST01700000"""
+    try:
+        import kis_auth as ka
+    except Exception as exc:
+        logger.warning("kis_auth not available: %s", exc)
+        return []
+
+    params = {
+        "fid_rsfl_rate2": "",
+        "fid_cond_mrkt_div_code": "J",
+        "fid_cond_scr_div_code": "20170",
+        "fid_input_iscd": "0000",
+        "fid_rank_sort_cls_code": "0000",  # 등락률 상위
+        "fid_input_cnt_1": "0",
+        "fid_prc_cls_code": "0",
+        "fid_input_price_1": "0",
+        "fid_input_price_2": "0",
+        "fid_vol_cnt": "100000",
+        "fid_trgt_cls_code": "0",
+        "fid_trgt_exls_cls_code": "0",
+        "fid_div_cls_code": "0",
+        "fid_rsfl_rate1": "0",
+    }
+
+    try:
+        res = ka._url_fetch(_FLUCTUATION_RANK_URL, _FLUCTUATION_RANK_TR_ID, "", params)
+    except Exception as exc:
+        logger.warning("fluctuation_rank call failed: %s", exc)
+        return []
+
+    if not res.isOK():
+        logger.warning("fluctuation_rank API error")
+        return []
+
+    rows = res.getBody().output
+    if not isinstance(rows, list):
+        rows = [rows] if rows else []
+
+    items: list[RankItem] = []
+    for i, row in enumerate(rows[:limit]):
+        try:
+            code = (row.get("stck_shrn_iscd") or row.get("mksc_shrn_iscd") or "").strip()
+            if not code:
+                continue
+            items.append(RankItem(
+                rank=int(row.get("data_rank") or i + 1),
+                stock_code=code,
+                stock_name=(row.get("hts_kor_isnm") or "").strip(),
+                price=int(row.get("stck_prpr") or 0),
+                change=int(row.get("prdy_vrss") or 0),
+                change_rate=float(row.get("prdy_ctrt") or 0),
+                volume=int(row.get("acml_vol") or 0),
+                trade_value=int(row.get("acml_tr_pbmn") or 0),
             ))
         except (ValueError, TypeError):
             continue

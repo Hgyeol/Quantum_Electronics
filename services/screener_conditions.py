@@ -67,11 +67,24 @@ def check_orgn_consecutive_buy(stock_code: str, days: int = 3) -> bool:
     return all(r["orgn_ntby_qty"] > 0 for r in rows[-days:])
 
 
+def check_price_surge(stock_code: str, threshold: float = 5.0) -> bool:
+    """당일 등락률 > threshold%."""
+    rows = get_prices(stock_code, days=2)
+    if len(rows) < 2:
+        return False
+    prev_close = rows[-2]["close"]
+    today_close = rows[-1]["close"]
+    if prev_close <= 0:
+        return False
+    return (today_close - prev_close) / prev_close * 100 >= threshold
+
+
 _CONDITION_FN = {
     "volume_surge": check_volume_surge,
     "golden_cross": check_golden_cross,
     "frgn_buy": check_frgn_consecutive_buy,
     "orgn_buy": check_orgn_consecutive_buy,
+    "price_surge": check_price_surge,
 }
 
 _CONDITION_LABEL = {
@@ -79,6 +92,7 @@ _CONDITION_LABEL = {
     "golden_cross": "골든크로스 (MA5/MA20)",
     "frgn_buy": "외국인 연속 순매수",
     "orgn_buy": "기관 연속 순매수",
+    "price_surge": "급등주",
 }
 
 
@@ -87,6 +101,7 @@ def run_screener(
     name_map: dict[str, str],
     volume_threshold: float = 2.0,
     consecutive_days: int = 3,
+    price_surge_threshold: float = 5.0,
 ) -> list[ScreenerResult]:
     """
     conditions: 적용할 조건 목록 (AND 조건)
@@ -112,6 +127,8 @@ def run_screener(
                     ok = fn(code, volume_threshold)
                 elif cond in ("frgn_buy", "orgn_buy"):
                     ok = fn(code, consecutive_days)
+                elif cond == "price_surge":
+                    ok = fn(code, price_surge_threshold)
                 else:
                     ok = fn(code)
             except Exception as exc:

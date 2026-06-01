@@ -23,7 +23,7 @@ from chart.models import ChartAnalysis
 from services.auth import check_admin_credentials, load_watchlist_codes, save_watchlist_codes
 from services.outlook import OutlookService, _build_market_quote, lookup_stock_master, search_stock_master, load_all_stock_names, load_search_priority_from_db
 from services.position import _kis_current_price_quote
-from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, RankItem
+from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, fetch_fluctuation_rank, RankItem
 from services.screener_conditions import run_screener
 from services.screener_db import get_last_collected
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
@@ -217,6 +217,15 @@ def get_volume_ranking(
     return [RankItemResponse(**item.__dict__) for item in items]
 
 
+@app.get("/ranking/fluctuation", response_model=list[RankItemResponse], dependencies=[Depends(require_admin)])
+def get_fluctuation_ranking(
+    limit: int = Query(30, ge=1, le=50, description="반환 종목 수"),
+):
+    """등락률 상위(급등주) 순위."""
+    items = fetch_fluctuation_rank(limit=limit)
+    return [RankItemResponse(**item.__dict__) for item in items]
+
+
 @app.get("/ranking/foreign", response_model=list[RankItemResponse], dependencies=[Depends(require_admin)])
 def get_foreign_ranking(
     investor: str = Query("foreign", description="foreign: 외국인 | institution: 기관"),
@@ -380,6 +389,7 @@ def get_screener(
     ),
     volume_threshold: float = Query(2.0, ge=1.0, description="거래량 급등 배수 (기본 2.0 = 20일 평균의 2배)"),
     consecutive_days: int = Query(3, ge=1, le=10, description="외국인/기관 연속 순매수 일수"),
+    price_surge_threshold: float = Query(5.0, ge=0.1, description="급등주 등락률 기준 (기본 5%)"),
 ):
     cond_list = [c.strip() for c in conditions.split(",") if c.strip()]
     if not cond_list:
@@ -397,6 +407,7 @@ def get_screener(
             name_map=name_map,
             volume_threshold=volume_threshold,
             consecutive_days=consecutive_days,
+            price_surge_threshold=price_surge_threshold,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
