@@ -1,11 +1,11 @@
-"""KIS WebSocket real-time price streamer for the watchlist."""
+"""KIS WebSocket real-time price streamer — fan-out 구조."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,6 @@ _KIS_WS_PROD  = "ws://ops.koreainvestment.com:21000"
 _KIS_WS_PAPER = "ws://ops.koreainvestment.com:31000"
 _TR_ID = "H0UNCNT0"  # 국내주식 실시간체결가 (통합)
 
-# H0UNCNT0 응답 컬럼 순서 (ccnl_total.py 참조)
 _COLUMNS = [
     "MKSC_SHRN_ISCD", "STCK_CNTG_HOUR", "STCK_PRPR",
     "PRDY_VRSS_SIGN", "PRDY_VRSS", "PRDY_CTRT",
@@ -29,7 +28,6 @@ _COLUMNS = [
     "PRDY_SMNS_HOUR_ACML_VOL", "PRDY_SMNS_HOUR_ACML_VOL_RATE",
     "HOUR_CLS_CODE", "MRKT_TRTM_CLS_CODE", "VI_STND_PRC",
 ]
-
 
 _cached_approval_key: str | None = None
 
@@ -68,58 +66,151 @@ def _sub_msg(approval_key: str, code: str, tr_type: str = "1") -> str:
     })
 
 
-async def stream_prices(
-    codes: list[str],
-    svr: str = "prod",
-) -> AsyncGenerator[dict, None]:
-    """
-    KIS WebSocket에서 실시간 체결가를 수신해 dict를 yield한다.
-    keys: stock_code, price, change, change_rate, volume, trade_value
-    """
-    import websockets
-
-    approval_key = get_approval_key(svr)
-    if not approval_key:
-        logger.error("approval_key 발급 실패 — 실시간 스트림 중단")
-        return
-
-    url = _KIS_WS_PROD if svr == "prod" else _KIS_WS_PAPER
-    logger.info("KIS WS 연결: %s (%d 종목)", url, len(codes))
-
+def _parse_tick(raw: str) -> dict | None:
     try:
-        async with websockets.connect(url, ping_interval=None) as ws:
+        if raw[0] not in ("0", "1"):
+            return None
+        parts = raw.split("|")
+        if len(parts) < 4 or parts[1] != _TR_ID:
+            return None
+        fields = parts[3].split("^")
+        d = dict(zip(_COLUMNS, fields))
+        code = d.get("MKSC_SHRN_ISCD", "").strip()
+        if not code:
+            return None
+        return {
+            "stock_code": code,
+            "price": int(d.get("STCK_PRPR") or 0),
+            "change": int(d.get("PRDY_VRSS") or 0),
+            "change_rate": float(d.get("PRDY_CTRT") or 0),
+            "volume": int(d.get("ACML_VOL") or 0),
+            "trade_value": int(d.get("ACML_TR_PBMN") or 0),
+        }
+    except Exception:
+        return None
+
+
+class KISConnectionManager:
+    """KIS WebSocket 1개로 유지하고 모든 클라이언트에 fan-out."""
+
+    def __init__(self, svr: str = "prod") -> None:
+        self._svr = svr
+        self._url = _KIS_WS_PROD if svr == "prod" else _KIS_WS_PAPER
+        # code -> set of queues
+        self._subscribers: dict[str, set[asyncio.Queue]] = defaultdict(set)
+        self._subscribed_codes: set[str] = set()
+        self._ws = None
+        self._task: asyncio.Task | None = None
+        self._lock = asyncio.Lock()
+
+    def start(self) -> None:
+        self._task = asyncio.create_task(self._run())
+
+    def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
+
+    async def subscribe(self, codes: list[str]) -> asyncio.Queue:
+        queue: asyncio.Queue = asyncio.Queue()
+        async with self._lock:
+            new_codes = []
             for code in codes:
-                await ws.send(_sub_msg(approval_key, code))
-                await asyncio.sleep(0.05)
+                self._subscribers[code].add(queue)
+                if code not in self._subscribed_codes:
+                    self._subscribed_codes.add(code)
+                    new_codes.append(code)
+            # 이미 연결된 WS가 있으면 새 종목만 추가 구독
+            if self._ws and new_codes:
+                approval_key = get_approval_key(self._svr)
+                if approval_key:
+                    for code in new_codes:
+                        try:
+                            await self._ws.send(_sub_msg(approval_key, code))
+                            await asyncio.sleep(0.05)
+                        except Exception:
+                            pass
+        return queue
 
-            async for raw in ws:
-                try:
-                    if raw[0] in ("0", "1"):
-                        parts = raw.split("|")
-                        if len(parts) < 4 or parts[1] != _TR_ID:
-                            continue
-                        fields = parts[3].split("^")
-                        d = dict(zip(_COLUMNS, fields))
-                        code = d.get("MKSC_SHRN_ISCD", "").strip()
-                        if not code:
-                            continue
-                        yield {
-                            "stock_code": code,
-                            "price": int(d.get("STCK_PRPR") or 0),
-                            "change": int(d.get("PRDY_VRSS") or 0),
-                            "change_rate": float(d.get("PRDY_CTRT") or 0),
-                            "volume": int(d.get("ACML_VOL") or 0),
-                            "trade_value": int(d.get("ACML_TR_PBMN") or 0),
-                        }
-                    else:
-                        rdic = json.loads(raw)
-                        if rdic.get("header", {}).get("tr_id") == "PINGPONG":
-                            await ws.pong(raw)
-                except Exception as exc:
-                    logger.debug("파싱 오류: %s | raw=%s", exc, raw[:80])
+    async def unsubscribe(self, codes: list[str], queue: asyncio.Queue) -> None:
+        async with self._lock:
+            for code in codes:
+                self._subscribers[code].discard(queue)
+                if not self._subscribers[code]:
+                    self._subscribed_codes.discard(code)
+                    # 구독자 없는 종목은 KIS에 구독 해제
+                    if self._ws:
+                        approval_key = get_approval_key(self._svr)
+                        if approval_key:
+                            try:
+                                await self._ws.send(_sub_msg(approval_key, code, tr_type="2"))
+                            except Exception:
+                                pass
 
-    except Exception as exc:
-        logger.warning("KIS WS 연결 오류: %s", exc)
-        # 연결 실패 시 캐시된 approval key 초기화 (만료된 키 재사용 방지)
-        global _cached_approval_key
-        _cached_approval_key = None
+    async def _run(self) -> None:
+        import websockets
+
+        while True:
+            # 구독자가 없으면 대기
+            if not self._subscribed_codes:
+                await asyncio.sleep(1)
+                continue
+
+            approval_key = get_approval_key(self._svr)
+            if not approval_key:
+                logger.error("approval_key 발급 실패 — 5초 후 재시도")
+                await asyncio.sleep(5)
+                continue
+
+            logger.info("KIS WS 연결: %s (%d 종목)", self._url, len(self._subscribed_codes))
+            try:
+                async with websockets.connect(self._url, ping_interval=None) as ws:
+                    self._ws = ws
+                    # 현재 구독 중인 모든 종목 등록
+                    async with self._lock:
+                        codes_snapshot = list(self._subscribed_codes)
+                    for code in codes_snapshot:
+                        await ws.send(_sub_msg(approval_key, code))
+                        await asyncio.sleep(0.05)
+
+                    async for raw in ws:
+                        try:
+                            rdic = None
+                            if raw[0] not in ("0", "1"):
+                                rdic = json.loads(raw)
+                                if rdic.get("header", {}).get("tr_id") == "PINGPONG":
+                                    await ws.pong(raw)
+                                continue
+                            tick = _parse_tick(raw)
+                            if not tick:
+                                continue
+                            # 해당 종목 구독자에게 브로드캐스트
+                            queues = list(self._subscribers.get(tick["stock_code"], []))
+                            for q in queues:
+                                try:
+                                    q.put_nowait(tick)
+                                except asyncio.QueueFull:
+                                    pass
+                        except Exception as exc:
+                            logger.debug("파싱 오류: %s", exc)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.warning("KIS WS 연결 오류: %s", exc)
+                global _cached_approval_key
+                _cached_approval_key = None
+            finally:
+                self._ws = None
+
+            await asyncio.sleep(2)  # 재연결 전 대기
+
+
+# 싱글톤 매니저
+_manager: KISConnectionManager | None = None
+
+
+def get_manager(svr: str = "prod") -> KISConnectionManager:
+    global _manager
+    if _manager is None:
+        _manager = KISConnectionManager(svr=svr)
+    return _manager

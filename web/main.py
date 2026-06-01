@@ -28,7 +28,7 @@ from services.screener_conditions import run_screener
 from services.screener_db import get_last_collected
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
-from services.realtime import stream_prices, refresh_approval_key
+from services.realtime import get_manager, refresh_approval_key
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 _SESSION_SECRET = os.getenv("SESSION_SECRET", "quantum-session-secret-change-me")
@@ -66,34 +66,26 @@ def initialize_kis_auth() -> bool:
     return True
 
 
-async def _approval_key_refresh_loop(svr: str) -> None:
-    while True:
-        await asyncio.sleep(12 * 3600)  # 12시간마다 갱신
-        try:
-            refresh_approval_key(svr=svr)
-            logger.info("KIS WebSocket approval key 갱신 완료")
-        except Exception as exc:
-            logger.warning("KIS WebSocket approval key 갱신 실패: %s", exc)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_dotenv_file()
     load_search_priority_from_db()
+    svr = os.getenv("KIS_SERVER", "prod")
     app.state.kis_authenticated = initialize_kis_auth()
     if app.state.kis_authenticated:
         try:
             from services.realtime import get_approval_key
-            key = get_approval_key(svr=os.getenv("KIS_SERVER", "prod"))
+            key = get_approval_key(svr=svr)
             if key:
                 logger.info("KIS WebSocket approval key 발급 완료")
             else:
                 logger.warning("KIS WebSocket approval key 발급 실패")
         except Exception as exc:
             logger.warning("KIS WebSocket auth 실패: %s", exc)
-    task = asyncio.create_task(_approval_key_refresh_loop(os.getenv("KIS_SERVER", "prod")))
+    manager = get_manager(svr=svr)
+    manager.start()
     yield
-    task.cancel()
+    manager.stop()
 
 
 app = FastAPI(
@@ -325,26 +317,27 @@ def get_watchlist(
 
 @app.websocket("/ws/watchlist")
 async def ws_watchlist(websocket: WebSocket, codes: str = Query(...)):
-    """관심종목 실시간 체결가 스트림 (KIS WebSocket relay)."""
+    """관심종목 실시간 체결가 스트림 (fan-out)."""
     await websocket.accept()
     code_list = [c.strip() for c in codes.split(",") if c.strip()][:40]
     if not code_list:
         await websocket.close(code=1008)
         return
 
+    manager = get_manager()
+    queue = await manager.subscribe(code_list)
     try:
-        async for tick in stream_prices(code_list):
+        while True:
             try:
+                tick = await asyncio.wait_for(queue.get(), timeout=30)
                 await websocket.send_json(tick)
-            except WebSocketDisconnect:
-                break
-            except Exception:
-                break
-    except WebSocketDisconnect:
+            except asyncio.TimeoutError:
+                # 30초간 tick 없으면 ping으로 연결 유지 확인
+                await websocket.send_json({"type": "ping"})
+    except (WebSocketDisconnect, Exception):
         pass
-    except Exception as exc:
-        logger.error("ws_watchlist 오류: %s", exc)
     finally:
+        await manager.unsubscribe(code_list, queue)
         try:
             await websocket.close()
         except Exception:
