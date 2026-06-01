@@ -339,13 +339,36 @@ def fetch_upper_limit_stocks() -> list[RankItem]:
     return items
 
 
+def _fluctuation_rank_from_db(limit: int) -> list[RankItem]:
+    """KIS API 대신 screener DB에서 등락률 상위 종목 반환."""
+    try:
+        from services.screener_db import get_top_fluctuation
+        rows = get_top_fluctuation(limit)
+    except Exception as exc:
+        logger.warning("screener_db fluctuation fallback failed: %s", exc)
+        return []
+    items: list[RankItem] = []
+    for i, row in enumerate(rows):
+        items.append(RankItem(
+            rank=i + 1,
+            stock_code=row["stock_code"],
+            stock_name=row["stock_name"],
+            price=int(row["price"] or 0),
+            change=int(row["change_val"] or 0),
+            change_rate=float(row["change_rate"] or 0),
+            volume=int(row["volume"] or 0),
+            trade_value=0,
+        ))
+    return items
+
+
 def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
-    """등락률 상위(급등주) 순위 조회. API: FHPST01700000"""
+    """등락률 상위(급등주) 순위 조회. API: FHPST01700000. 빈 응답 시 screener DB 폴백."""
     try:
         import kis_auth as ka
     except Exception as exc:
         logger.warning("kis_auth not available: %s", exc)
-        return []
+        return _fluctuation_rank_from_db(limit)
 
     params = {
         "fid_rsfl_rate2": "",
@@ -371,8 +394,8 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
         return []
 
     if not res.isOK():
-        logger.warning("fluctuation_rank API error")
-        return []
+        logger.warning("fluctuation_rank API error — falling back to screener DB")
+        return _fluctuation_rank_from_db(limit)
 
     rows = res.getBody().output
     if not isinstance(rows, list):
@@ -396,5 +419,9 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
             ))
         except (ValueError, TypeError):
             continue
+
+    if not items:
+        logger.info("fluctuation_rank API returned empty — falling back to screener DB")
+        return _fluctuation_rank_from_db(limit)
 
     return items

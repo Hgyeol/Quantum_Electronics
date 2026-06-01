@@ -151,6 +151,35 @@ def get_all_stock_codes() -> list[str]:
     return [r["stock_code"] for r in rows]
 
 
+def get_top_fluctuation(limit: int = 30) -> list[dict]:
+    """최근 거래일 기준 등락률 상위 종목. KIS API 폴백용."""
+    with closing(get_conn()) as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                t.stock_code,
+                COALESCE(s.name, t.stock_code) AS stock_name,
+                t.close  AS price,
+                (t.close - p.close) AS change_val,
+                ROUND((t.close - p.close) * 100.0 / p.close, 2) AS change_rate,
+                t.volume
+            FROM daily_price t
+            JOIN daily_price p ON t.stock_code = p.stock_code
+            LEFT JOIN stocks s ON t.stock_code = s.stock_code
+            WHERE t.date = (SELECT MAX(date) FROM daily_price)
+              AND p.date = (
+                    SELECT MAX(date) FROM daily_price
+                    WHERE date < (SELECT MAX(date) FROM daily_price)
+                  )
+              AND p.close > 0
+            ORDER BY change_rate DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_latest_price_date() -> str | None:
     """daily_price 전체에서 가장 최근 날짜 반환."""
     with closing(get_conn()) as conn:
