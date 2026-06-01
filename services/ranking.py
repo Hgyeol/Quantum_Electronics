@@ -363,12 +363,12 @@ def _fluctuation_rank_from_db(limit: int) -> list[RankItem]:
 
 
 def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
-    """등락률 상위(급등주) 순위 조회. API: FHPST01700000. 빈 응답 시 screener DB 폴백."""
+    """등락률 상위(급등주) 순위 조회. API: FHPST01700000."""
     try:
         import kis_auth as ka
     except Exception as exc:
         logger.warning("kis_auth not available: %s", exc)
-        return _fluctuation_rank_from_db(limit)
+        return []
 
     params = {
         "fid_rsfl_rate2": "",
@@ -394,8 +394,8 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
         return []
 
     if not res.isOK():
-        logger.warning("fluctuation_rank API error — falling back to screener DB")
-        return _fluctuation_rank_from_db(limit)
+        logger.warning("fluctuation_rank API error")
+        return []
 
     rows = res.getBody().output
     if not isinstance(rows, list):
@@ -419,9 +419,5 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
             ))
         except (ValueError, TypeError):
             continue
-
-    if not items:
-        logger.info("fluctuation_rank API returned empty — falling back to screener DB")
-        return _fluctuation_rank_from_db(limit)
 
     return items
