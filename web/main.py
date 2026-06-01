@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -27,7 +28,7 @@ from services.screener_conditions import run_screener
 from services.screener_db import get_last_collected
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
-from services.realtime import stream_prices
+from services.realtime import stream_prices, refresh_approval_key
 
 _DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 _SESSION_SECRET = os.getenv("SESSION_SECRET", "quantum-session-secret-change-me")
@@ -65,6 +66,16 @@ def initialize_kis_auth() -> bool:
     return True
 
 
+async def _approval_key_refresh_loop(svr: str) -> None:
+    while True:
+        await asyncio.sleep(12 * 3600)  # 12시간마다 갱신
+        try:
+            refresh_approval_key(svr=svr)
+            logger.info("KIS WebSocket approval key 갱신 완료")
+        except Exception as exc:
+            logger.warning("KIS WebSocket approval key 갱신 실패: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_dotenv_file()
@@ -80,7 +91,9 @@ async def lifespan(app: FastAPI):
                 logger.warning("KIS WebSocket approval key 발급 실패")
         except Exception as exc:
             logger.warning("KIS WebSocket auth 실패: %s", exc)
+    task = asyncio.create_task(_approval_key_refresh_loop(os.getenv("KIS_SERVER", "prod")))
     yield
+    task.cancel()
 
 
 app = FastAPI(

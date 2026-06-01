@@ -50,6 +50,12 @@ def get_approval_key(svr: str = "prod") -> str | None:
         return None
 
 
+def refresh_approval_key(svr: str = "prod") -> str | None:
+    global _cached_approval_key
+    _cached_approval_key = None
+    return get_approval_key(svr=svr)
+
+
 def _sub_msg(approval_key: str, code: str, tr_type: str = "1") -> str:
     return json.dumps({
         "header": {
@@ -114,3 +120,6 @@ async def stream_prices(
 
     except Exception as exc:
         logger.warning("KIS WS 연결 오류: %s", exc)
+        # 연결 실패 시 캐시된 approval key 초기화 (만료된 키 재사용 방지)
+        global _cached_approval_key
+        _cached_approval_key = None
