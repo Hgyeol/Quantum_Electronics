@@ -4,8 +4,21 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
+
+_KST = timezone(timedelta(hours=9))
+
+
+def _market_div_code() -> str:
+    """KST 현재 시각 기준으로 활성 시장 코드 반환.
+    8:00~9:00, 15:30~20:00 → NXT("NX"), 그 외 → KRX("J")
+    """
+    now = datetime.now(_KST)
+    minutes = now.hour * 60 + now.minute
+    nxt_only = (8 * 60 <= minutes < 9 * 60) or (15 * 60 + 30 <= minutes < 20 * 60)
+    return "NX" if nxt_only else "J"
 
 _VOLUME_RANK_URL = "/uapi/domestic-stock/v1/quotations/volume-rank"
 _VOLUME_RANK_TR_ID = "FHPST01710000"
@@ -54,7 +67,7 @@ def fetch_volume_rank(sort: str = "volume", limit: int = 20) -> list[RankItem]:
         return []
 
     params = {
-        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_MRKT_DIV_CODE": _market_div_code(),
         "FID_COND_SCR_DIV_CODE": "20171",
         "FID_INPUT_ISCD": "0000",
         "FID_DIV_CLS_CODE": "0",
@@ -173,7 +186,7 @@ def fetch_volume_power_rank(limit: int = 50) -> list[RankItem]:
 
     params = {
         "fid_trgt_exls_cls_code": "0",
-        "fid_cond_mrkt_div_code": "J",
+        "fid_cond_mrkt_div_code": _market_div_code(),
         "fid_cond_scr_div_code": "20168",
         "fid_input_iscd": "0000",
         "fid_div_cls_code": "0",
@@ -233,7 +246,7 @@ def fetch_near_new_highlow_rank(near_type: str = "high", limit: int = 50) -> lis
 
     params = {
         "fid_aply_rang_vol": "0",
-        "fid_cond_mrkt_div_code": "J",
+        "fid_cond_mrkt_div_code": _market_div_code(),
         "fid_cond_scr_div_code": "20187",
         "fid_div_cls_code": "0",
         "fid_input_cnt_1": "0",
@@ -291,7 +304,7 @@ def fetch_upper_limit_stocks() -> list[RankItem]:
         return []
 
     params = {
-        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_MRKT_DIV_CODE": _market_div_code(),
         "FID_COND_SCR_DIV_CODE": "11300",
         "FID_PRC_CLS_CODE": "0",
         "FID_DIV_CLS_CODE": "0",
@@ -372,7 +385,7 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
 
     params = {
         "fid_rsfl_rate2": "",
-        "fid_cond_mrkt_div_code": "J",
+        "fid_cond_mrkt_div_code": _market_div_code(),
         "fid_cond_scr_div_code": "20170",
         "fid_input_iscd": "0000",
         "fid_rank_sort_cls_code": "0",  # 등락률 상위
