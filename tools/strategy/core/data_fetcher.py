@@ -234,10 +234,11 @@ def get_current_price(
         return {}
 
     try:
+        from services.ranking import _market_div_code
         tr_id = "FHKST01010100"
 
         params = {
-            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_COND_MRKT_DIV_CODE": _market_div_code(),
             "FID_INPUT_ISCD": stock_code
         }
 
