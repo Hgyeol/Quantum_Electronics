@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from services.ranking import _market_div_code
+
 logger = logging.getLogger(__name__)
 
 _API_URL = "/uapi/domestic-stock/v1/quotations/intstock-multprice"
@@ -37,9 +39,10 @@ def fetch_multi_price(codes: list[str], name_map: dict[str, str]) -> list[Watchl
         logger.warning("kis_auth not available: %s", exc)
         return []
 
+    market_code = _market_div_code()
     params: dict[str, str] = {}
     for i, code in enumerate(codes[:30], start=1):
-        params[f"FID_COND_MRKT_DIV_CODE_{i}"] = "J"
+        params[f"FID_COND_MRKT_DIV_CODE_{i}"] = market_code
         params[f"FID_INPUT_ISCD_{i}"] = code
 
     try:
