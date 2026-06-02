@@ -375,7 +375,7 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
         "fid_cond_mrkt_div_code": "J",
         "fid_cond_scr_div_code": "20170",
         "fid_input_iscd": "0000",
-        "fid_rank_sort_cls_code": "0000",  # 등락률 상위
+        "fid_rank_sort_cls_code": "0",  # 등락률 상위
         "fid_input_cnt_1": "0",
         "fid_prc_cls_code": "0",
         "fid_input_price_1": "0",
@@ -394,7 +394,11 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
         return []
 
     if not res.isOK():
-        logger.warning("fluctuation_rank API error")
+        try:
+            body = res.getBody()
+            logger.warning("fluctuation_rank API error: %s %s", getattr(body, 'rt_cd', '?'), getattr(body, 'msg1', '?'))
+        except Exception:
+            logger.warning("fluctuation_rank API error (body parse failed)")
         return []
 
     rows = res.getBody().output
@@ -402,22 +406,28 @@ def fetch_fluctuation_rank(limit: int = 30) -> list[RankItem]:
         rows = [rows] if rows else []
 
     items: list[RankItem] = []
-    for i, row in enumerate(rows[:limit]):
+    for row in rows:
         try:
             code = (row.get("stck_shrn_iscd") or row.get("mksc_shrn_iscd") or "").strip()
             if not code:
                 continue
+            cr = float(row.get("prdy_ctrt") or 0)
+            if cr <= 0:
+                continue
             items.append(RankItem(
-                rank=int(row.get("data_rank") or i + 1),
+                rank=0,
                 stock_code=code,
                 stock_name=(row.get("hts_kor_isnm") or "").strip(),
                 price=int(row.get("stck_prpr") or 0),
                 change=int(row.get("prdy_vrss") or 0),
-                change_rate=float(row.get("prdy_ctrt") or 0),
+                change_rate=cr,
                 volume=int(row.get("acml_vol") or 0),
                 trade_value=int(row.get("acml_tr_pbmn") or 0),
             ))
         except (ValueError, TypeError):
             continue
 
-    return items
+    items.sort(key=lambda x: x.change_rate, reverse=True)
+    for i, item in enumerate(items[:limit]):
+        item.rank = i + 1
+    return items[:limit]
