@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 _KIS_WS_PROD  = "ws://ops.koreainvestment.com:21000"
 _KIS_WS_PAPER = "ws://ops.koreainvestment.com:31000"
-_TR_ID = "H0UNCNT0"  # 국내주식 실시간체결가 (통합)
+_TR_ID = "H0UNCNT0"      # 국내주식 실시간체결가 (통합, KRX+NXT)
+_TR_ID_NXT = "H0NXCNT0"  # 국내주식 실시간체결가 (NXT 전용, 8:00-20:00)
+_TR_IDS = frozenset({_TR_ID, _TR_ID_NXT})
 
 _COLUMNS = [
     "MKSC_SHRN_ISCD", "STCK_CNTG_HOUR", "STCK_PRPR",
@@ -54,7 +56,7 @@ def refresh_approval_key(svr: str = "prod") -> str | None:
     return get_approval_key(svr=svr)
 
 
-def _sub_msg(approval_key: str, code: str, tr_type: str = "1") -> str:
+def _sub_msg(approval_key: str, code: str, tr_type: str = "1", tr_id: str = _TR_ID) -> str:
     return json.dumps({
         "header": {
             "approval_key": approval_key,
@@ -62,7 +64,7 @@ def _sub_msg(approval_key: str, code: str, tr_type: str = "1") -> str:
             "tr_type": tr_type,
             "content-type": "utf-8",
         },
-        "body": {"input": {"tr_id": _TR_ID, "tr_key": code}},
+        "body": {"input": {"tr_id": tr_id, "tr_key": code}},
     })
 
 
@@ -71,7 +73,7 @@ def _parse_tick(raw: str) -> dict | None:
         if raw[0] not in ("0", "1"):
             return None
         parts = raw.split("|")
-        if len(parts) < 4 or parts[1] != _TR_ID:
+        if len(parts) < 4 or parts[1] not in _TR_IDS:
             return None
         fields = parts[3].split("^")
         d = dict(zip(_COLUMNS, fields))
@@ -119,13 +121,15 @@ class KISConnectionManager:
                 if code not in self._subscribed_codes:
                     self._subscribed_codes.add(code)
                     new_codes.append(code)
-            # 이미 연결된 WS가 있으면 새 종목만 추가 구독
+            # 이미 연결된 WS가 있으면 새 종목만 추가 구독 (통합 + NXT 이중 구독)
             if self._ws and new_codes:
                 approval_key = get_approval_key(self._svr)
                 if approval_key:
                     for code in new_codes:
                         try:
-                            await self._ws.send(_sub_msg(approval_key, code))
+                            await self._ws.send(_sub_msg(approval_key, code, tr_id=_TR_ID))
+                            await asyncio.sleep(0.05)
+                            await self._ws.send(_sub_msg(approval_key, code, tr_id=_TR_ID_NXT))
                             await asyncio.sleep(0.05)
                         except Exception:
                             pass
@@ -137,14 +141,15 @@ class KISConnectionManager:
                 self._subscribers[code].discard(queue)
                 if not self._subscribers[code]:
                     self._subscribed_codes.discard(code)
-                    # 구독자 없는 종목은 KIS에 구독 해제
+                    # 구독자 없는 종목은 KIS에 구독 해제 (통합 + NXT 둘 다)
                     if self._ws:
                         approval_key = get_approval_key(self._svr)
                         if approval_key:
-                            try:
-                                await self._ws.send(_sub_msg(approval_key, code, tr_type="2"))
-                            except Exception:
-                                pass
+                            for tid in (_TR_ID, _TR_ID_NXT):
+                                try:
+                                    await self._ws.send(_sub_msg(approval_key, code, tr_type="2", tr_id=tid))
+                                except Exception:
+                                    pass
 
     async def _run(self) -> None:
         import websockets
@@ -169,7 +174,9 @@ class KISConnectionManager:
                     async with self._lock:
                         codes_snapshot = list(self._subscribed_codes)
                     for code in codes_snapshot:
-                        await ws.send(_sub_msg(approval_key, code))
+                        await ws.send(_sub_msg(approval_key, code, tr_id=_TR_ID))
+                        await asyncio.sleep(0.05)
+                        await ws.send(_sub_msg(approval_key, code, tr_id=_TR_ID_NXT))
                         await asyncio.sleep(0.05)
 
                     async for raw in ws:
