@@ -87,6 +87,10 @@ def _parse_tick(raw: str) -> dict | None:
             "change_rate": float(d.get("PRDY_CTRT") or 0),
             "volume": int(d.get("ACML_VOL") or 0),
             "trade_value": int(d.get("ACML_TR_PBMN") or 0),
+            "open": int(d.get("STCK_OPRC") or 0),
+            "high": int(d.get("STCK_HGPR") or 0),
+            "low": int(d.get("STCK_LWPR") or 0),
+            "bsop_date": d.get("BSOP_DATE", ""),
         }
     except Exception:
         return None
