@@ -122,7 +122,7 @@ class LLMAnalysisTests(unittest.TestCase):
         self.assertIn("가격·수급 흐름", prompt)
         self.assertIn("뉴스·공시 evidence에 직접 적혀 있을 때만 언급한다", prompt)
         self.assertIn("마지막에 1회만 짧게 언급", prompt)
-        self.assertIn("score는 반드시 -2, -1, 0, 1, 2", prompt)
+        self.assertIn("score는 반드시 -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8", prompt)
         self.assertIn("evidence_ids는 아래에 표시된 evidence_id만 사용한다", prompt)
         self.assertIn("evidence_id: fin-1", prompt)
 

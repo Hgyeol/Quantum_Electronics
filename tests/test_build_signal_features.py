@@ -92,7 +92,7 @@ class BuildSignalFeaturesTests(unittest.TestCase):
                     ai_signals=[
                         AISignal(
                             direction="positive",
-                            score=2,
+                            score=8,
                             label="after close news",
                             summary="장마감 이후 호재",
                             evidence_ids=["news-2"],
@@ -112,7 +112,7 @@ class BuildSignalFeaturesTests(unittest.TestCase):
                 ai_signals=[
                     AISignal(
                         direction="positive",
-                        score=2,
+                        score=8,
                         label="after close news",
                         summary="장마감 이후 호재",
                         evidence_ids=["news-2"],

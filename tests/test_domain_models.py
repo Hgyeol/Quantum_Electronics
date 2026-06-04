@@ -47,7 +47,7 @@ class DomainModelTests(unittest.TestCase):
             AISignal(
                 label="disclosure interpretation",
                 direction="negative",
-                score=-2,
+                score=-8,
                 summary="risk factor",
                 evidence_ids=["disc-1"],
             )
@@ -71,11 +71,11 @@ class DomainModelTests(unittest.TestCase):
         self.assertEqual(score.total_score, -4)
         self.assertEqual(score.direction, "negative")
 
-    def test_combine_ai_score_averages_before_weighting(self):
+    def test_combine_ai_score_averages_multiple_signals(self):
         ai = [
-            AISignal(label="news 1", direction="positive", score=2, summary="strong positive"),
-            AISignal(label="news 2", direction="positive", score=2, summary="strong positive"),
-            AISignal(label="news 3", direction="positive", score=2, summary="strong positive"),
+            AISignal(label="news 1", direction="positive", score=8, summary="strong positive"),
+            AISignal(label="news 2", direction="positive", score=8, summary="strong positive"),
+            AISignal(label="news 3", direction="positive", score=8, summary="strong positive"),
         ]
 
         score = combine_signals(ai_signals=ai)
@@ -86,8 +86,8 @@ class DomainModelTests(unittest.TestCase):
 
     def test_combine_mixed_ai_score_uses_average_direction(self):
         ai = [
-            AISignal(label="positive news", direction="positive", score=2, summary="positive"),
-            AISignal(label="negative news", direction="negative", score=-2, summary="negative"),
+            AISignal(label="positive news", direction="positive", score=8, summary="positive"),
+            AISignal(label="negative news", direction="negative", score=-8, summary="negative"),
         ]
 
         score = combine_signals(ai_signals=ai)

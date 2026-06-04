@@ -13,7 +13,6 @@ class ScoredSignal(Protocol):
     score: int
 
 
-AI_SCORE_WEIGHT = 4
 AI_SCORE_MIN = -8
 AI_SCORE_MAX = 8
 
@@ -30,12 +29,15 @@ def sum_scores(signals: Iterable[ScoredSignal]) -> int:
     return sum(signal.score for signal in signals)
 
 
-def weighted_ai_score(signals: Iterable[AISignal]) -> int:
+def aggregate_ai_score(signals: Iterable[AISignal]) -> int:
+    """다중 AI 신호 합산 시에도 ±8 범위 유지를 위해 평균 후 클램프.
+    LLM이 prompt 제약으로 이미 -8~+8 범위에서 출력하므로 별도 가중치는 불필요.
+    """
     ai_signals = list(signals)
     if not ai_signals:
         return 0
-    weighted = round(sum_scores(ai_signals) / len(ai_signals) * AI_SCORE_WEIGHT)
-    return max(AI_SCORE_MIN, min(AI_SCORE_MAX, weighted))
+    avg = round(sum_scores(ai_signals) / len(ai_signals))
+    return max(AI_SCORE_MIN, min(AI_SCORE_MAX, avg))
 
 
 def combine_signals(
@@ -44,7 +46,7 @@ def combine_signals(
     financial_signals: Iterable[FinancialSignal] = (),
 ) -> ScoreBreakdown:
     quant_score = sum_scores(quant_signals)
-    ai_score = weighted_ai_score(ai_signals)
+    ai_score = aggregate_ai_score(ai_signals)
     financial_score = sum_scores(financial_signals)
     total_score = quant_score + ai_score + financial_score
 
