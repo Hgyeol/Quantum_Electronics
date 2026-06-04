@@ -530,16 +530,17 @@ def _fetch_live_items(condition: str) -> list[RankItem]:
 def run_screener(
     conditions: list[str],
     name_map: dict[str, str],
-    volume_threshold: float = 2.0,
-    consecutive_days: int = 3,
-    price_surge_threshold: float = 5.0,
+    params: dict[str, dict] | None = None,
 ) -> list[ScreenerResult]:
     """
     conditions: 적용할 조건 목록 (AND 조건)
     name_map: stock_code → stock_name
+    params: 조건별 파라미터 dict ({"volume_surge": {"threshold": 2.0}, ...})
+            지정 안 된 조건은 check 함수의 기본값 사용.
     라이브 조건(volume_power, near_high, upper_limit)은 KIS API에서 실시간 조회 후 교집합.
     DB 조건은 screener_db에서 per-stock 검사.
     """
+    user_params: dict[str, dict] = params or {}
     all_valid = set(_CONDITION_FN.keys()) | _LIVE_CONDITIONS
     invalid = [c for c in conditions if c not in all_valid]
     if invalid:
@@ -586,15 +587,12 @@ def run_screener(
         # DB 조건: per-stock 검사
         for cond in db_conds:
             fn = _CONDITION_FN[cond]
+            cond_params = user_params.get(cond, {})
             try:
-                if cond == "volume_surge":
-                    ok = fn(code, volume_threshold)
-                elif cond in ("frgn_buy", "orgn_buy"):
-                    ok = fn(code, consecutive_days)
-                elif cond == "price_surge":
-                    ok = fn(code, price_surge_threshold)
-                else:
-                    ok = fn(code)
+                ok = fn(code, **cond_params)
+            except TypeError as exc:
+                logger.warning("Invalid params for %s (%s). Using defaults.", cond, exc)
+                ok = fn(code)
             except Exception as exc:
                 logger.debug("Condition %s error for %s: %s", cond, code, exc)
                 ok = False

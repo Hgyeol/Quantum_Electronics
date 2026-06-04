@@ -401,13 +401,24 @@ def get_screener(
         ...,
         description=f"Comma-separated conditions. Available: {', '.join(_AVAILABLE_CONDITIONS)}",
     ),
-    volume_threshold: float = Query(2.0, ge=1.0, description="거래량 급등 배수 (기본 2.0 = 20일 평균의 2배)"),
-    consecutive_days: int = Query(3, ge=1, le=10, description="외국인/기관 연속 순매수 일수"),
-    price_surge_threshold: float = Query(5.0, ge=0.1, description="급등주 등락률 기준 (기본 5%)"),
+    params: str | None = Query(
+        None,
+        description='JSON-encoded per-condition params, e.g. {"volume_surge":{"threshold":2.0},"momentum_up":{"period":10}}',
+    ),
 ):
+    import json
     cond_list = [c.strip() for c in conditions.split(",") if c.strip()]
     if not cond_list:
         raise HTTPException(status_code=422, detail="conditions is required")
+
+    parsed_params: dict[str, dict] = {}
+    if params:
+        try:
+            parsed_params = json.loads(params)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=422, detail="params must be valid JSON")
+        if not isinstance(parsed_params, dict):
+            raise HTTPException(status_code=422, detail="params must be a JSON object")
 
     name_map: dict[str, str] = {}
     try:
@@ -419,9 +430,7 @@ def get_screener(
         results = run_screener(
             conditions=cond_list,
             name_map=name_map,
-            volume_threshold=volume_threshold,
-            consecutive_days=consecutive_days,
-            price_surge_threshold=price_surge_threshold,
+            params=parsed_params,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
