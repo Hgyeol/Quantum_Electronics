@@ -371,8 +371,19 @@ def get_stock_technical_indicators(
 # ── Screener ─────────────────────────────────────────────────────────────────
 
 _AVAILABLE_CONDITIONS = [
+    # 기존
     "volume_surge", "golden_cross", "frgn_buy", "orgn_buy", "price_surge",
     "volume_power", "near_high", "upper_limit",
+    # 강한매수
+    "consecutive_bull", "consecutive_up", "higher_high_low",
+    # 매수
+    "ma_alignment", "break_prev_high", "new_high_5d", "volume_golden_cross",
+    "macd_signal_cross", "macd_osc_up",
+    "lrs_signal_up", "tsf_signal_up",
+    "volume_osc_up", "price_osc_up",
+    "mao_up", "mao_signal_up",
+    "momentum_up", "roc_up", "sonar_signal_up",
+    "obv_up", "obv_uturn",
 ]
 
 
