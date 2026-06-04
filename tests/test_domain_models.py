@@ -66,10 +66,35 @@ class DomainModelTests(unittest.TestCase):
         score = combine_signals(quant, ai, financial)
 
         self.assertEqual(score.quant_score, 1)
-        self.assertEqual(score.ai_score, -2)
+        self.assertEqual(score.ai_score, -8)
         self.assertEqual(score.financial_score, 3)
-        self.assertEqual(score.total_score, 2)
+        self.assertEqual(score.total_score, -4)
+        self.assertEqual(score.direction, "negative")
+
+    def test_combine_ai_score_averages_before_weighting(self):
+        ai = [
+            AISignal(label="news 1", direction="positive", score=2, summary="strong positive"),
+            AISignal(label="news 2", direction="positive", score=2, summary="strong positive"),
+            AISignal(label="news 3", direction="positive", score=2, summary="strong positive"),
+        ]
+
+        score = combine_signals(ai_signals=ai)
+
+        self.assertEqual(score.ai_score, 8)
+        self.assertEqual(score.total_score, 8)
         self.assertEqual(score.direction, "positive")
+
+    def test_combine_mixed_ai_score_uses_average_direction(self):
+        ai = [
+            AISignal(label="positive news", direction="positive", score=2, summary="positive"),
+            AISignal(label="negative news", direction="negative", score=-2, summary="negative"),
+        ]
+
+        score = combine_signals(ai_signals=ai)
+
+        self.assertEqual(score.ai_score, 0)
+        self.assertEqual(score.total_score, 0)
+        self.assertEqual(score.direction, "neutral")
 
     def test_outlook_report_accepts_partial_errors_and_evidence(self):
         score = combine_signals()

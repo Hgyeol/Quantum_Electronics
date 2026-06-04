@@ -173,9 +173,9 @@ class BuildSignalFeaturesTests(unittest.TestCase):
             self.assertEqual(rows[0]["total_rule_score"], 0)
             self.assertEqual(rows[1]["news_count"], 1)
             self.assertEqual(rows[1]["financial_evidence_count"], 1)
-            self.assertEqual(rows[1]["ai_score"], 2)
+            self.assertEqual(rows[1]["ai_score"], 8)
             self.assertEqual(rows[1]["financial_score"], -1)
-            self.assertEqual(rows[1]["total_rule_score"], 1)
+            self.assertEqual(rows[1]["total_rule_score"], 7)
 
 
 if __name__ == "__main__":
