@@ -5,6 +5,11 @@
 uv.lock
 .mcp.json
 .env
+
+# Google 서비스 계정 키 (절대 커밋 금지)
+stock-screener-*.json
+*-service-account*.json
+.gsheet_key.json
 .idea
 *.egg-info
 
@@ -15,3 +20,4 @@ ml/artifacts/*
 !ml/artifacts/.gitkeep
 
 .omx
+CLAUDE.md
