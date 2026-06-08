@@ -234,11 +234,12 @@ def get_current_price(
         return {}
 
     try:
-        from services.ranking import _market_div_code
         tr_id = "FHKST01010100"
 
+        # 통합(UN) 시장코드: KRX/NXT 어디서 거래되든 현재가가 조회됨.
+        # NX 단독 조회 시 NXT 미상장 종목은 price=0이 되어 시세가 누락됨.
         params = {
-            "FID_COND_MRKT_DIV_CODE": _market_div_code(),
+            "FID_COND_MRKT_DIV_CODE": "UN",
             "FID_INPUT_ISCD": stock_code
         }
 
