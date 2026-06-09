@@ -6,14 +6,29 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
+
+_KST = timezone(timedelta(hours=9))
 
 _KIS_WS_PROD  = "ws://ops.koreainvestment.com:21000"
 _KIS_WS_PAPER = "ws://ops.koreainvestment.com:31000"
 _TR_ID = "H0UNCNT0"      # 국내주식 실시간체결가 (통합, KRX+NXT)
 _TR_ID_NXT = "H0NXCNT0"  # 국내주식 실시간체결가 (NXT 전용, 8:00-20:00)
 _TR_IDS = frozenset({_TR_ID, _TR_ID_NXT})
+
+
+def _active_tr_id() -> str:
+    """KST 현재 시각 기준 활성 TR.
+    정규장(9:00~15:30)·그 외 → 통합(H0UNCNT0), NXT 전용 시간대(8~9, 15:30~20) → H0NXCNT0.
+    통합과 NXT 틱이 동시에 오면 누적거래대금/거래량이 서로 달라(통합 ↔ NXT 전용) 깜빡이므로,
+    한 시간대에는 한 종류의 틱만 클라이언트에 전달한다.
+    """
+    now = datetime.now(_KST)
+    minutes = now.hour * 60 + now.minute
+    nxt_only = (8 * 60 <= minutes < 9 * 60) or (15 * 60 + 30 <= minutes < 20 * 60)
+    return _TR_ID_NXT if nxt_only else _TR_ID
 
 _COLUMNS = [
     "MKSC_SHRN_ISCD", "STCK_CNTG_HOUR", "STCK_PRPR",
@@ -81,6 +96,7 @@ def _parse_tick(raw: str) -> dict | None:
         if not code:
             return None
         return {
+            "_tr_id": parts[1],
             "stock_code": code,
             "price": int(d.get("STCK_PRPR") or 0),
             "change": int(d.get("PRDY_VRSS") or 0),
@@ -193,6 +209,9 @@ class KISConnectionManager:
                                 continue
                             tick = _parse_tick(raw)
                             if not tick:
+                                continue
+                            # 비활성 시장 틱은 버림 (통합 ↔ NXT 누적값 깜빡임 방지)
+                            if tick.pop("_tr_id", _TR_ID) != _active_tr_id():
                                 continue
                             # 해당 종목 구독자에게 브로드캐스트
                             queues = list(self._subscribers.get(tick["stock_code"], []))
