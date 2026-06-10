@@ -151,6 +151,38 @@ def get_all_stock_codes() -> list[str]:
     return [r["stock_code"] for r in rows]
 
 
+def get_all_daily_closes() -> dict[str, list[tuple[str, float]]]:
+    """전 종목 일봉 종가를 {stock_code: [(date, close), ...]} 로 일괄 반환 (날짜 오름차순).
+
+    차트 패턴 매칭처럼 전 종목을 한 번에 스캔하는 용도. 종가가 0 이하인 행은 제외.
+    """
+    with closing(get_conn()) as conn:
+        rows = conn.execute(
+            """SELECT stock_code, date, close
+               FROM daily_price
+               WHERE close > 0
+               ORDER BY stock_code, date"""
+        ).fetchall()
+    out: dict[str, list[tuple[str, float]]] = {}
+    for r in rows:
+        out.setdefault(r["stock_code"], []).append((r["date"], float(r["close"])))
+    return out
+
+
+def get_closes_between(stock_code: str, start: str, end: str) -> list[tuple[str, float]]:
+    """특정 종목의 [start, end] 구간 종가 (날짜 오름차순). 날짜는 YYYYMMDD 또는 YYYY-MM-DD."""
+    s = start.replace("-", "")
+    e = end.replace("-", "")
+    with closing(get_conn()) as conn:
+        rows = conn.execute(
+            """SELECT date, close FROM daily_price
+               WHERE stock_code = ? AND replace(date,'-','') BETWEEN ? AND ? AND close > 0
+               ORDER BY date""",
+            (stock_code, s, e),
+        ).fetchall()
+    return [(r["date"], float(r["close"])) for r in rows]
+
+
 def get_top_fluctuation(limit: int = 30) -> list[dict]:
     """최근 거래일 기준 등락률 상위 종목. KIS API 폴백용."""
     with closing(get_conn()) as conn:

@@ -284,6 +284,39 @@ def get_chart_analysis(
         raise HTTPException(status_code=500, detail=f"차트 분석 오류: {exc}")
 
 
+@app.get("/chart/{code}/similar", dependencies=[Depends(require_admin)])
+def get_similar_patterns(
+    code: str,
+    start: str = Query(..., description="질의 구간 시작일 (YYYY-MM-DD 또는 YYYYMMDD)"),
+    end: str = Query(..., description="질의 구간 종료일"),
+    horizon: int = Query(20, ge=1, le=120, description="이후 N거래일 수익률 집계 구간"),
+    top_k: int = Query(10, ge=1, le=1000, description="반환할 유사 사례 개수 (크게 주면 사실상 제한 없음)"),
+    metric: str = Query("dtw", description="유사도 지표: dtw / pearson / spearman"),
+    min_similarity: float = Query(0.0, ge=0, le=100, description="유사도 컷오프 (이 값 미만 제외)"),
+):
+    """차트 패턴 유사 사례 검색 — 고른 구간과 유사했던 과거 사례 + 이후 수익률 통계."""
+    from chart.pattern_match import find_similar_patterns, result_to_dict
+
+    name_map: dict[str, str] = {}
+    try:
+        name_map = load_all_stock_names()
+    except Exception:
+        pass
+
+    try:
+        result = find_similar_patterns(
+            stock_code=code, start_date=start, end_date=end,
+            name_map=name_map, horizon=horizon, top_k=top_k,
+            metric=metric, min_similarity=min_similarity,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.exception("similar pattern search failed for %s", code)
+        raise HTTPException(status_code=500, detail=f"패턴 검색 오류: {exc}")
+    return result_to_dict(result)
+
+
 @app.get("/quote/{code}", dependencies=[Depends(require_admin)])
 def get_market_quote(code: str):
     """종목 현재가 시세 — 고가·저가·거래량·52W 포함 (전망 보기 없이 즉시 조회)."""
