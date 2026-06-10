@@ -45,6 +45,7 @@ class PatternMatchResult:
     query_end: str
     window_length: int
     horizon: int
+    metric: str                   # 사용한 유사도 지표 (dtw/pearson/spearman)
     query_closes: list[float]     # 질의 구간 종가 (비교 차트용)
     cases: list[SimilarCase]
     stats: dict
@@ -77,6 +78,40 @@ def _dtw_distance(a: np.ndarray, b: np.ndarray, band: int) -> float:
     return float(prev[m])
 
 
+def _pearson(a: np.ndarray, b: np.ndarray) -> float:
+    """피어슨 상관계수 (-1~1). 분산 0이면 0."""
+    a = a - a.mean()
+    b = b - b.mean()
+    denom = np.sqrt((a * a).sum() * (b * b).sum())
+    if denom < 1e-12:
+        return 0.0
+    return float((a * b).sum() / denom)
+
+
+def _rankdata(x: np.ndarray) -> np.ndarray:
+    """평균 순위 (동점은 평균 처리) — scipy 없이 스피어만용."""
+    order = x.argsort()
+    ranks = np.empty(len(x), dtype=np.float64)
+    ranks[order] = np.arange(len(x), dtype=np.float64)
+    # 동점 평균 처리
+    _, inv, counts = np.unique(x, return_inverse=True, return_counts=True)
+    if (counts > 1).any():
+        sums = np.zeros(len(counts))
+        np.add.at(sums, inv, ranks)
+        means = sums / counts
+        ranks = means[inv]
+    return ranks
+
+
+def _spearman(a: np.ndarray, b: np.ndarray) -> float:
+    """스피어만 순위 상관계수 (-1~1)."""
+    return _pearson(_rankdata(a), _rankdata(b))
+
+
+# 측정 지표: distance_fn(작을수록 유사) 또는 corr_fn(클수록 유사)
+_METRICS = ("dtw", "pearson", "spearman")
+
+
 def find_similar_patterns(
     stock_code: str,
     start_date: str,
@@ -84,7 +119,12 @@ def find_similar_patterns(
     name_map: dict[str, str],
     horizon: int = 20,
     top_k: int = 10,
+    metric: str = "dtw",
+    min_similarity: float = 0.0,
 ) -> PatternMatchResult:
+    if metric not in _METRICS:
+        raise ValueError(f"metric은 {_METRICS} 중 하나여야 합니다.")
+
     # ── 1. 질의 구간 ──────────────────────────────────────────────────────────
     query_rows = get_closes_between(stock_code, start_date, end_date)
     query_closes = np.array([c for _, c in query_rows], dtype=np.float64)
@@ -140,7 +180,7 @@ def find_similar_patterns(
     if not cand:
         return PatternMatchResult(
             query_stock_code=stock_code, query_start=q_start, query_end=q_end,
-            window_length=L, horizon=horizon, query_closes=q_closes_list,
+            window_length=L, horizon=horizon, metric=metric, query_closes=q_closes_list,
             cases=[], stats=_empty_stats(),
         )
 
@@ -148,24 +188,41 @@ def find_similar_patterns(
     cand.sort(key=lambda x: x[0])
     cand = cand[:_PREFILTER_TOPN]
 
-    # ── 3. DTW 정밀 재정렬 ────────────────────────────────────────────────────
-    scored: list[tuple[float, str, int, list[str], np.ndarray]] = []
+    # ── 3. 선택 지표로 정밀 재정렬 ────────────────────────────────────────────
+    # scored: (similarity 0~100, code, i, dates, closes). 높을수록 유사.
+    raw_dtw: list[tuple[float, str, int, list, np.ndarray]] = []
+    scored: list[tuple[float, str, int, list, np.ndarray]] = []
     for _, code, i, dates, closes in cand:
         w = closes[i : i + L]
         w_norm = _znorm(w.reshape(1, -1))[0]
-        d = _dtw_distance(q_norm, w_norm, band)
-        scored.append((d, code, i, dates, closes))
-    scored.sort(key=lambda x: x[0])
+        if metric == "dtw":
+            raw_dtw.append((_dtw_distance(q_norm, w_norm, band), code, i, dates, closes))
+        elif metric == "pearson":
+            corr = _pearson(q_norm, w_norm)
+            scored.append((round(max(0.0, corr) * 100, 1), code, i, dates, closes))
+        else:  # spearman
+            corr = _spearman(q_norm, w_norm)
+            scored.append((round(max(0.0, corr) * 100, 1), code, i, dates, closes))
 
-    # ── 4. 종목당 1건만, 상위 top_k ───────────────────────────────────────────
+    if metric == "dtw":
+        # DTW 거리는 절대 해석이 어려워 후보 내 상대값(0~100)으로 환산
+        raw_dtw.sort(key=lambda x: x[0])
+        vals = [d for d, *_ in raw_dtw[: max(top_k * 3, 10)]] or [d for d, *_ in raw_dtw]
+        d_min, d_max = (min(vals), max(vals)) if vals else (0.0, 1.0)
+        span = (d_max - d_min) or 1.0
+        for d, code, i, dates, closes in raw_dtw:
+            sim = round((1 - (d - d_min) / span) * 100, 1)
+            scored.append((sim, code, i, dates, closes))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # ── 4. 종목당 1건만, 컷오프 적용, 상위 top_k ──────────────────────────────
     cases: list[SimilarCase] = []
     seen_codes: set[str] = set()
-    dtw_vals = [s[0] for s in scored[: top_k * 3]] or [s[0] for s in scored]
-    d_min, d_max = min(dtw_vals), max(dtw_vals)
-    span = (d_max - d_min) or 1.0
-
-    for d, code, i, dates, closes in scored:
+    for similarity, code, i, dates, closes in scored:
         if code in seen_codes:
+            continue
+        if similarity < min_similarity:
             continue
         seen_codes.add(code)
         end_idx = i + L - 1
@@ -173,7 +230,6 @@ def find_similar_patterns(
         fwd_ret = None
         if fwd_idx < len(closes) and closes[end_idx] > 0:
             fwd_ret = round((closes[fwd_idx] / closes[end_idx] - 1) * 100, 2)
-        similarity = round((1 - (d - d_min) / span) * 100, 1)
         fwd_end = min(fwd_idx + 1, len(closes))  # 이후 horizon일 (있는 만큼)
         cases.append(SimilarCase(
             stock_code=code,
@@ -193,7 +249,7 @@ def find_similar_patterns(
 
     return PatternMatchResult(
         query_stock_code=stock_code, query_start=q_start, query_end=q_end,
-        window_length=L, horizon=horizon, query_closes=q_closes_list,
+        window_length=L, horizon=horizon, metric=metric, query_closes=q_closes_list,
         cases=cases, stats=stats,
     )
 
