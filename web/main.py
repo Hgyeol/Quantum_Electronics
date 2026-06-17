@@ -26,6 +26,7 @@ from services.position import _kis_current_price_quote
 from services.ranking import fetch_volume_rank, fetch_foreign_institution_rank, fetch_fluctuation_rank, RankItem
 from services.screener_conditions import run_screener
 from services.screener_db import get_last_collected
+from services.sector import list_sectors, get_picks
 from services.technical_indicators import calculate_indicators, list_indicator_definitions
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
 from services.realtime import get_manager, refresh_approval_key
@@ -474,3 +475,24 @@ def get_screener(
 @app.get("/screener/status", dependencies=[Depends(require_admin)])
 def get_screener_status():
     return {"last_collected": get_last_collected()}
+
+
+@app.get("/sectors", dependencies=[Depends(require_admin)])
+def get_sectors():
+    return list_sectors()
+
+
+@app.get("/sectors/{sector}/picks", dependencies=[Depends(require_admin)])
+def get_sector_picks(sector: str):
+    picks = get_picks(sector, top_n=3)
+    return [
+        {
+            "stock_code": p.stock_code,
+            "name": p.name,
+            "market": p.market,
+            "close": p.close,
+            "change_rate": p.change_rate,
+            "score": p.score,
+        }
+        for p in picks
+    ]

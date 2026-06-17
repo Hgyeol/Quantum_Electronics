@@ -23,7 +23,8 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS stocks (
                 stock_code TEXT PRIMARY KEY,
                 name       TEXT,
-                market     TEXT
+                market     TEXT,
+                sector     TEXT
             );
 
             CREATE TABLE IF NOT EXISTS daily_price (
@@ -64,6 +65,54 @@ def upsert_stocks(rows: list[dict]) -> None:
             rows,
         )
         conn.commit()
+
+
+def upsert_sectors(rows: list[dict]) -> None:
+    """rows: list of {stock_code, sector}"""
+    if not rows:
+        return
+    with closing(get_conn()) as conn:
+        existing_cols = [
+            row[1] for row in conn.execute("PRAGMA table_info(stocks)").fetchall()
+        ]
+        if "sector" not in existing_cols:
+            conn.execute("ALTER TABLE stocks ADD COLUMN sector TEXT")
+        conn.executemany(
+            "UPDATE stocks SET sector = :sector WHERE stock_code = :stock_code",
+            rows,
+        )
+        conn.commit()
+
+
+def get_all_sectors() -> list[dict]:
+    """업종명 + 종목수 목록 반환 (sector가 있고 daily_price 데이터도 있는 종목 기준)."""
+    with closing(get_conn()) as conn:
+        rows = conn.execute(
+            """SELECT s.sector, COUNT(DISTINCT s.stock_code) AS stock_count
+               FROM stocks s
+               WHERE s.sector IS NOT NULL AND s.sector != ''
+                 AND EXISTS (
+                     SELECT 1 FROM daily_price dp WHERE dp.stock_code = s.stock_code
+                 )
+               GROUP BY s.sector
+               ORDER BY s.sector"""
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_stocks_by_sector(sector: str) -> list[dict]:
+    """업종 내 종목 중 daily_price 데이터가 있는 것만 반환."""
+    with closing(get_conn()) as conn:
+        rows = conn.execute(
+            """SELECT s.stock_code, s.name, s.market
+               FROM stocks s
+               WHERE s.sector = ?
+                 AND EXISTS (
+                     SELECT 1 FROM daily_price dp WHERE dp.stock_code = s.stock_code
+                 )""",
+            (sector,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_all_stock_names() -> dict[str, str]:
