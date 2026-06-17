@@ -29,6 +29,12 @@ USER_XLSX_PATH = os.path.join(BASE, "기능명세서_사용자용.xlsx")
 USER_WORKSHEET = "기능명세서(사용자용)"
 USER_HEADERS = ["분류", "기능", "이런 기능이에요 (쉬운 설명)", "어디서 볼 수 있나요", "추가된 시점"]
 
+# 새로 추가된 기능 — 사용자용 명세서에서 배경색으로 강조할 '기능' 라벨 집합.
+# (기능 추가 시 여기에 라벨을 넣고, 다음 릴리스 때 비우는 식으로 관리)
+NEW_USER_FEATURES = {"유사 패턴 찾기", "유사 사례 차트 비교"}
+NEW_FILL_HEX = "FFF3CD"  # 연한 노랑 (xlsx)
+NEW_FILL_RGB = (1.0, 0.953, 0.804)  # 동일 색 (구글시트)
+
 DEV_XLSX_PATH = os.path.join(BASE, "기능명세서.xlsx")
 DEV_WORKSHEET = "기능명세서(개발자용)"
 DEV_HEADERS = ["요구사항", "상세 기능", "데이터 정의", "엔터티 정의", "화면 정의", "패키지"]
@@ -150,7 +156,7 @@ def _auth_sheet():
 
 
 def _push_table(sh, title: str, table: list[list[str]], header_rgb: tuple[float, float, float],
-                col_widths: list[int] | None = None):
+                col_widths: list[int] | None = None, highlight_rows: list[int] | None = None):
     ncols = len(table[0])
     try:
         ws = sh.worksheet(title)
@@ -181,6 +187,13 @@ def _push_table(sh, title: str, table: list[list[str]], header_rgb: tuple[float,
         } for i, w in enumerate(col_widths)]
         sh.batch_update({"requests": requests})
 
+    # 신규 기능 행 배경색 강조 (1-based 시트 행번호 리스트)
+    if highlight_rows:
+        for row in highlight_rows:
+            ws.format(f"A{row}:{last_col}{row}", {
+                "backgroundColor": {"red": NEW_FILL_RGB[0], "green": NEW_FILL_RGB[1], "blue": NEW_FILL_RGB[2]},
+            })
+
 
 # ── 사용자용 ──────────────────────────────────────────────────────────────────
 def build_user_xlsx() -> None:
@@ -192,6 +205,7 @@ def build_user_xlsx() -> None:
     cat_fill = PatternFill("solid", fgColor="E2EFDA")
     cat_font = Font(bold=True, size=12)
     body_font = Font(size=12)
+    new_fill = PatternFill("solid", fgColor=NEW_FILL_HEX)
 
     ws.append(USER_HEADERS)
     for c in range(1, 6):
@@ -203,10 +217,13 @@ def build_user_xlsx() -> None:
     r, prev_cat, cat_start = 2, None, 2
     for cat, func, desc, where, when in DATA:
         ws.append([cat, func, desc, where, when])
+        is_new = func in NEW_USER_FEATURES
         for c in range(1, 6):
             cell = ws.cell(row=r, column=c)
             cell.border = _BORDER; cell.font = body_font
             cell.alignment = _WRAP_LEFT if c == 3 else (_CENTER if c in (1, 4, 5) else _WRAP)
+            if is_new and c >= 2:  # 분류(1열)는 카테고리 색 유지, 나머지에 신규 강조색
+                cell.fill = new_fill
         if prev_cat is not None and cat != prev_cat:
             if r - 1 > cat_start:
                 ws.merge_cells(start_row=cat_start, start_column=1, end_row=r - 1, end_column=1)
@@ -280,8 +297,10 @@ if __name__ == "__main__":
 
     sh = _auth_sheet()
     user_table = [USER_HEADERS] + [list(r) for r in DATA]
+    # 신규 기능 행 번호 (헤더가 1행이므로 DATA i번째 → 시트 i+2행)
+    highlight = [i + 2 for i, r in enumerate(DATA) if r[1] in NEW_USER_FEATURES]
     _push_table(sh, USER_WORKSHEET, user_table, (0.33, 0.51, 0.21),
-                col_widths=[110, 140, 460, 170, 110])
+                col_widths=[110, 140, 460, 170, 110], highlight_rows=highlight)
     print(f"✓ 사용자용 탭 반영: {USER_WORKSHEET}")
     _push_table(sh, DEV_WORKSHEET, dev_table(), (0.18, 0.33, 0.59),
                 col_widths=[210, 380, 190, 150, 200, 160])
