@@ -23,7 +23,7 @@ _PRICE_TR_ID = "FHKST03010100"
 _INVESTOR_URL = "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
 _INVESTOR_TR_ID = "FHPTJ04160001"
 
-_SLEEP = 0.06  # ~16 calls/sec, 20이 max지만 여유 둠
+_SLEEP = 0.12  # KIS rate limit 여유 확보
 
 
 def _load_stock_codes() -> list[tuple[str, str]]:
