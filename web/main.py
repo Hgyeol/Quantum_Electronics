@@ -31,9 +31,9 @@ from services.technical_indicators import calculate_indicators, list_indicator_d
 from services.watchlist import WatchlistItem as _WatchlistItem, fetch_multi_price
 from services.realtime import get_manager, refresh_approval_key
 
-_DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+_DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:4000,http://localhost:8787"
 _SESSION_SECRET = os.getenv("SESSION_SECRET", "quantum-session-secret-change-me")
-# 프로덕션(HTTPS)에서는 SESSION_SAME_SITE=none, SESSION_HTTPS_ONLY=true 로 설정
+# 프로덕션(HTTPS)에서는 SESSION_SAME_SITE=none, SESSION_HTTPS_ONLY=true 로 설정 
 _SESSION_SAME_SITE = os.getenv("SESSION_SAME_SITE", "lax")          # lax | none
 _SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "false").lower() in {"1", "true", "yes"}
 

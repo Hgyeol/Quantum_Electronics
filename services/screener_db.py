@@ -60,8 +60,11 @@ def upsert_stocks(rows: list[dict]) -> None:
         return
     with closing(get_conn()) as conn:
         conn.executemany(
-            """INSERT OR REPLACE INTO stocks (stock_code, name, market)
-               VALUES (:stock_code, :name, :market)""",
+            """INSERT INTO stocks (stock_code, name, market)
+               VALUES (:stock_code, :name, :market)
+               ON CONFLICT(stock_code) DO UPDATE SET
+                   name = excluded.name,
+                   market = excluded.market""",
             rows,
         )
         conn.commit()
